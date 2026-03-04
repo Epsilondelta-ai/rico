@@ -1,0 +1,178 @@
+{
+  "app": {
+    "name": "Rico"
+  },
+  "session": {
+    "count": "{count} sessions",
+    "edit": "Edit",
+    "done": "Done",
+    "new": "New Session",
+    "empty": "No sessions",
+    "empty_hint": "Start a new session",
+    "refresh": "Refresh"
+  },
+  "time": {
+    "yesterday": "Yesterday",
+    "days_ago": "{days} days ago"
+  },
+  "settings": {
+    "title": "Settings",
+    "theme_light": "Light Mode",
+    "theme_dark": "Dark Mode",
+    "soul": "SOUL Settings",
+    "push_on": "Notifications On",
+    "push_off": "Enable Notifications"
+  },
+  "user": {
+    "online": "Online",
+    "name": "User"
+  },
+  "chat": {
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "cancel": "Cancel",
+    "placeholder": "Type a message...",
+    "uploading": "Uploading...",
+    "new_message": "NEW",
+    "copy_all": "Copy all messages",
+    "back": "Go back"
+  },
+  "menu": {
+    "open": "Open menu",
+    "folder": "Browse Folder",
+    "image": "Attach Image",
+    "skills": "Skills"
+  },
+  "file": {
+    "title": "Browse Folder",
+    "select": "Select",
+    "up": "Parent folder",
+    "loading": "Loading...",
+    "empty": "Empty folder",
+    "unreadable": "Cannot read file.",
+    "remove_folder": "Remove working folder",
+    "remove_image": "Remove image"
+  },
+  "skills": {
+    "title": "Skills",
+    "loading": "Loading...",
+    "empty": "No skills installed",
+    "run": "Run"
+  },
+  "action": {
+    "copy": "Copy",
+    "copied": "Copied!",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "send": "Send message",
+    "close": "Close"
+  },
+  "typing": {
+    "gathering": "Gathering information...",
+    "preparing": "Preparing response",
+    "thinking": "Hold on, thinking",
+    "reviewing": "Reviewing data",
+    "analyzing": "Interesting question... analyzing",
+    "searching": "Finding the best answer",
+    "wait": "Just a moment, almost there",
+    "skill": "Running {skill} skill"
+  },
+  "login": {
+    "subtitle": "Connect with Claude Code",
+    "email": "Email",
+    "password": "Password",
+    "error": "Please enter email and password",
+    "button": "Login",
+    "loading": "Logging in..."
+  },
+  "soul": {
+    "title": "SOUL Settings",
+    "loading": "Loading...",
+    "generating": "Generating SOUL",
+    "modifying": "Modifying SOUL",
+    "complete": "SOUL Generated!",
+    "complete_hint": "Apply if you like it, or request modifications.",
+    "active": "Currently active SOUL",
+    "modify_hint": "Request modifications if needed",
+    "modify_placeholder": "e.g. Make the tone more friendly",
+    "request_modify": "Request Modify",
+    "apply": "Apply",
+    "applied": "SOUL has been applied.",
+    "backup": "Backup",
+    "backup_done": "Current SOUL has been backed up.",
+    "restore": "Restore",
+    "restore_confirm": "Restore to default SOUL?",
+    "restore_done": "Restored to default SOUL.",
+    "change": "Change SOUL",
+    "search": "From Character",
+    "search_hint": "Search and apply your favorite character",
+    "custom": "Custom",
+    "custom_hint": "Enter name, personality, and gender",
+    "manage": "Manage",
+    "wait": "Please wait"
+  },
+  "character": {
+    "title": "Character Search",
+    "hint": "Fetching character info from the internet",
+    "name": "Character Name",
+    "placeholder": "e.g. Naruto, Pikachu, Iron Man",
+    "analyzing": "Analyzing character",
+    "creating": "Creating SOUL",
+    "error_empty": "Please enter a character name."
+  },
+  "custom": {
+    "title": "Custom Settings",
+    "hint": "Create your own SOUL",
+    "name": "Name",
+    "name_placeholder": "e.g. Luna",
+    "personality": "Personality",
+    "personality_placeholder": "e.g. Cheerful and positive",
+    "gender": "Gender",
+    "error_empty": "Please enter a name."
+  },
+  "gender": {
+    "female": "Female",
+    "male": "Male",
+    "neutral": "Neutral"
+  },
+  "generate": {
+    "button": "Generate",
+    "loading": "Generating...",
+    "error_start": "Failed to start generation",
+    "error": "Error during generation",
+    "error_timeout": "Generation timed out",
+    "error_modify": "Modification request failed",
+    "error_modify_process": "Error during modification",
+    "error_modify_timeout": "Modification timed out"
+  },
+  "soulList": {
+    "title": "SOUL Library",
+    "manage": "Manage",
+    "done": "Done",
+    "create": "Create New SOUL",
+    "empty": "No saved SOULs",
+    "empty_hint": "Create a new SOUL",
+    "default": "Default",
+    "active": "Active",
+    "delete_confirm": "Delete \"{name}\" SOUL?",
+    "use": "Use this SOUL"
+  },
+  "image": {
+    "attached": "Attached image",
+    "enlarged": "Enlarged image"
+  },
+  "error": {
+    "soul_load": "Failed to load active SOUL:",
+    "session_load": "Failed to load sessions:",
+    "message_load": "Failed to load session messages:",
+    "session_delete": "Failed to delete session:",
+    "server": "Server error:",
+    "push": "Push subscription failed:",
+    "upload_timeout": "Upload timed out",
+    "folder_load": "Failed to load folder:",
+    "file_load": "Failed to load file:",
+    "skills_load": "Failed to load skills:",
+    "copy": "Copy failed:",
+    "copy_all": "Failed to copy all:"
+  }
+}

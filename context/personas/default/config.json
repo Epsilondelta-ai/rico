@@ -1,0 +1,10 @@
+{
+  "name": "Assistant",
+  "avatar": "A",
+  "accentColor": "#4fd1c5",
+  "typingMessages": {
+    "default": ["Thinking...", "Processing...", "Working on it..."],
+    "ko": ["생각하는 중...", "처리 중...", "작업 중..."],
+    "en": ["Thinking...", "Processing...", "Working on it..."]
+  }
+}

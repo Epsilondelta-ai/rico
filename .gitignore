@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.exe
+*.exe~
+*.dll
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.keystore
+credentials.json
+secrets.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Temp files
+*.tmp
+*.temp
+
+# Test screenshots
+server/screenshot.png
+app/android/app/debug.keystore
+
+# Server data (sessions, etc)
+server/data/
+server/temp/
+
+# SSL certificates
+*.crt
+
+# Push subscriptions (user data)
+push_subscriptions.json
+
+# Plan/temp documents
+PLAN_*.md

@@ -1,0 +1,171 @@
+@import "tailwindcss";
+
+/* ===== 테마 CSS 변수 시스템 ===== */
+
+/* 다크 테마 (기본값) */
+:root {
+  /* 배경 */
+  --bg-primary: #1a2222;
+  --bg-secondary: #1e2828;
+  --bg-tertiary: #242e2e;
+  --bg-hover: #222c2c;
+  --bg-input: #242e2e;
+
+  /* 보더 */
+  --border-primary: #2d3a3a;
+  --border-secondary: #3d4f4f;
+
+  /* 텍스트 */
+  --text-primary: #e8f4f4;
+  --text-secondary: #d4e8e8;
+  --text-tertiary: #b8d4d4;
+  --text-muted: #8ac0c0;
+  --text-dimmed: #6a9a9a;
+  --text-faint: #4a6666;
+
+  /* 액센트 */
+  --accent-primary: #4fd1c5;
+  --accent-primary-hover: #5de0d4;
+  --accent-primary-shadow: rgba(79, 209, 197, 0.2);
+  --accent-secondary: #2d9a8f;
+
+  /* 보라 (유저) */
+  --purple-primary: #a78bfa;
+  --purple-secondary: #8b5cf6;
+  --purple-dark: #6d28d9;
+  --purple-shadow: rgba(139, 92, 246, 0.2);
+
+  /* 오렌지 (파일/이미지) */
+  --orange-primary: #f6ad55;
+  --orange-bg: rgba(246, 173, 85, 0.1);
+
+  /* 레드 (삭제/에러) */
+  --red-primary: #f87171;
+  --red-bg: rgba(248, 113, 113, 0.1);
+
+  /* 코드블록 */
+  --code-bg: #141a1a;
+  --code-inline-bg: #242e2e;
+  --code-text: #d4e8e8;
+  --code-inline-text: #f6ad55;
+
+  /* 그림자 */
+  --shadow-color: rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px var(--shadow-color);
+
+  /* 오버레이 */
+  --overlay-bg: rgba(0, 0, 0, 0.7);
+  --overlay-heavy: rgba(0, 0, 0, 0.95);
+}
+
+/* 라이트 테마 */
+:root.light {
+  /* 배경 */
+  --bg-primary: #f8fafa;
+  --bg-secondary: #f0f4f4;
+  --bg-tertiary: #e8eeee;
+  --bg-hover: #e0e8e8;
+  --bg-input: #ffffff;
+
+  /* 보더 */
+  --border-primary: #d0dada;
+  --border-secondary: #c0d0d0;
+
+  /* 텍스트 */
+  --text-primary: #1a2626;
+  --text-secondary: #2a3a3a;
+  --text-tertiary: #3a4a4a;
+  --text-muted: #4a6060;
+  --text-dimmed: #607070;
+  --text-faint: #809090;
+
+  /* 액센트 */
+  --accent-primary: #0d9488;
+  --accent-primary-hover: #0f766e;
+  --accent-primary-shadow: rgba(13, 148, 136, 0.2);
+  --accent-secondary: #14b8a6;
+
+  /* 보라 (유저) */
+  --purple-primary: #7c3aed;
+  --purple-secondary: #8b5cf6;
+  --purple-dark: #6d28d9;
+  --purple-shadow: rgba(124, 58, 237, 0.2);
+
+  /* 오렌지 (파일/이미지) */
+  --orange-primary: #ea580c;
+  --orange-bg: rgba(234, 88, 12, 0.1);
+
+  /* 레드 (삭제/에러) */
+  --red-primary: #dc2626;
+  --red-bg: rgba(220, 38, 38, 0.1);
+
+  /* 코드블록 */
+  --code-bg: #1e2828;
+  --code-inline-bg: #e8eeee;
+  --code-text: #e8f4f4;
+  --code-inline-text: #c2410c;
+
+  /* 그림자 */
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px var(--shadow-color);
+
+  /* 오버레이 */
+  --overlay-bg: rgba(0, 0, 0, 0.5);
+  --overlay-heavy: rgba(0, 0, 0, 0.8);
+}
+
+/* ===== 기본 스타일 ===== */
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+button, a {
+  touch-action: manipulation;
+}
+
+/* iOS Safari 텍스트 선택 및 컨텍스트 메뉴 비활성화 */
+.no-select {
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+
+html {
+  /* iOS PWA Safe Area */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  background-color: var(--bg-primary);
+  transition: background-color 0.3s ease;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-secondary);
+  min-height: 100vh;
+  min-height: 100dvh;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+#app {
+  width: 100%;
+  max-width: 428px;
+  margin: 0 auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* 테마 전환 애니메이션 */
+.theme-transition,
+.theme-transition *,
+.theme-transition *::before,
+.theme-transition *::after {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease !important;
+}

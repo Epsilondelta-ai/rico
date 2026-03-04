@@ -1,0 +1,178 @@
+{
+  "app": {
+    "name": "Rico"
+  },
+  "session": {
+    "count": "{count}개의 세션",
+    "edit": "편집",
+    "done": "완료",
+    "new": "새 세션",
+    "empty": "세션이 없습니다",
+    "empty_hint": "새 세션을 시작해보세요",
+    "refresh": "새로고침"
+  },
+  "time": {
+    "yesterday": "어제",
+    "days_ago": "{days}일 전"
+  },
+  "settings": {
+    "title": "설정",
+    "theme_light": "라이트 모드",
+    "theme_dark": "다크 모드",
+    "soul": "SOUL 설정",
+    "push_on": "알림 켜짐",
+    "push_off": "알림 켜기"
+  },
+  "user": {
+    "online": "온라인",
+    "name": "User"
+  },
+  "chat": {
+    "connected": "연결됨",
+    "disconnected": "연결 끊김",
+    "cancel": "취소",
+    "placeholder": "메시지를 입력하세요...",
+    "uploading": "업로드 중...",
+    "new_message": "NEW",
+    "copy_all": "전체 대화 복사",
+    "back": "뒤로 가기"
+  },
+  "menu": {
+    "open": "메뉴 열기",
+    "folder": "폴더 이동",
+    "image": "이미지 첨부",
+    "skills": "Skills"
+  },
+  "file": {
+    "title": "폴더 이동",
+    "select": "선택",
+    "up": "상위 폴더",
+    "loading": "로딩 중...",
+    "empty": "빈 폴더",
+    "unreadable": "파일을 읽을 수 없습니다.",
+    "remove_folder": "작업 폴더 해제",
+    "remove_image": "이미지 제거"
+  },
+  "skills": {
+    "title": "Skills",
+    "loading": "로딩 중...",
+    "empty": "설치된 skill이 없습니다",
+    "run": "실행"
+  },
+  "action": {
+    "copy": "복사",
+    "copied": "복사됨!",
+    "delete": "삭제",
+    "cancel": "취소",
+    "send": "메시지 전송",
+    "close": "닫기"
+  },
+  "typing": {
+    "gathering": "정보를 취합하는 중...",
+    "preparing": "답변을 준비하고 있어",
+    "thinking": "잠시만, 생각 중이야",
+    "reviewing": "자료를 검토하는 중",
+    "analyzing": "흥미로운 질문이네... 분석 중",
+    "searching": "최적의 답변을 찾는 중",
+    "wait": "조금만 기다려줘, 금방 될 거야",
+    "skill": "{skill} skill 실행 중"
+  },
+  "login": {
+    "subtitle": "Claude Code와 연결하세요",
+    "email": "이메일",
+    "password": "비밀번호",
+    "error": "이메일과 비밀번호를 입력해주세요",
+    "button": "로그인",
+    "loading": "로그인 중..."
+  },
+  "soul": {
+    "title": "SOUL 설정",
+    "loading": "로딩 중...",
+    "generating": "SOUL 생성 중",
+    "modifying": "SOUL 수정 중",
+    "complete": "SOUL 생성 완료!",
+    "complete_hint": "마음에 드시면 사용, 아니면 수정해주세요.",
+    "active": "현재 활성화된 SOUL",
+    "modify_hint": "수정이 필요하면 요청해주세요",
+    "modify_placeholder": "예: 말투를 더 친근하게 해줘",
+    "request_modify": "수정 요청",
+    "apply": "사용하기",
+    "applied": "SOUL이 적용되었습니다.",
+    "backup": "백업",
+    "backup_done": "현재 SOUL이 백업되었습니다.",
+    "restore": "복원",
+    "restore_confirm": "기본 SOUL로 복원하시겠습니까?",
+    "restore_done": "기본 SOUL로 복원되었습니다.",
+    "change": "SOUL 변경",
+    "search": "캐릭터로 변경",
+    "search_hint": "좋아하는 캐릭터를 검색해서 적용",
+    "custom": "직접 설정",
+    "custom_hint": "이름, 성격, 성별을 직접 입력",
+    "manage": "관리",
+    "wait": "잠시만 기다려주세요"
+  },
+  "character": {
+    "title": "캐릭터 검색",
+    "hint": "인터넷에서 캐릭터 정보를 가져옵니다",
+    "name": "캐릭터 이름",
+    "placeholder": "예: 나루토, 피카츄, 아이언맨",
+    "analyzing": "캐릭터를 분석하고 있어요",
+    "creating": "SOUL을 만들고 있어요",
+    "error_empty": "캐릭터 이름을 입력해주세요."
+  },
+  "custom": {
+    "title": "직접 설정",
+    "hint": "나만의 SOUL을 만들어보세요",
+    "name": "이름",
+    "name_placeholder": "예: 루나",
+    "personality": "성격",
+    "personality_placeholder": "예: 활발하고 긍정적",
+    "gender": "성별",
+    "error_empty": "이름을 입력해주세요."
+  },
+  "gender": {
+    "female": "여성",
+    "male": "남성",
+    "neutral": "중성"
+  },
+  "generate": {
+    "button": "생성하기",
+    "loading": "생성 중...",
+    "error_start": "생성 시작 실패",
+    "error": "생성 중 오류 발생",
+    "error_timeout": "생성 시간 초과",
+    "error_modify": "수정 요청 실패",
+    "error_modify_process": "수정 중 오류 발생",
+    "error_modify_timeout": "수정 시간 초과"
+  },
+  "soulList": {
+    "title": "SOUL 라이브러리",
+    "manage": "관리",
+    "done": "완료",
+    "create": "새 SOUL 생성",
+    "empty": "저장된 SOUL이 없습니다",
+    "empty_hint": "새 SOUL을 생성해보세요",
+    "default": "기본",
+    "active": "활성",
+    "delete_confirm": "\"{name}\" SOUL을 삭제하시겠습니까?",
+    "use": "이 SOUL 사용"
+  },
+  "image": {
+    "attached": "첨부 이미지",
+    "enlarged": "이미지 확대"
+  },
+  "error": {
+    "soul_load": "활성 SOUL 로드 실패:",
+    "session_load": "세션 목록 로드 실패:",
+    "message_load": "세션 메시지 로드 실패:",
+    "session_delete": "세션 삭제 실패:",
+    "server": "서버 에러:",
+    "push": "푸시 구독 실패:",
+    "upload_timeout": "업로드 타임아웃",
+    "folder_load": "폴더 로드 실패:",
+    "file_load": "파일 로드 실패:",
+    "skills_load": "Skills 로드 실패:",
+    "copy": "복사 실패:",
+    "copy_all": "전체 복사 실패:"
+  }
+}
