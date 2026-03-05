@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -1886,6 +1887,48 @@ func main() {
 		json.NewEncoder(w).Encode(session)
 	})
 
+	// 퀵 경로 API (홈, 바탕화면 등 동적 제공)
+	http.HandleFunc("/api/quick-paths", func(w http.ResponseWriter, r *http.Request) {
+		enableCORS(w)
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		type QuickPath struct {
+			Name string `json:"name"`
+			Path string `json:"path"`
+		}
+
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			homeDir = "/"
+		}
+
+		paths := []QuickPath{
+			{Name: "Home", Path: homeDir},
+		}
+
+		// Windows인 경우 바탕화면 추가
+		if runtime.GOOS == "windows" {
+			desktopPath := filepath.Join(homeDir, "Desktop")
+			if _, err := os.Stat(desktopPath); err == nil {
+				paths = append(paths, QuickPath{Name: "Desktop", Path: desktopPath})
+			}
+		}
+
+		// macOS/Linux인 경우 Documents 추가
+		if runtime.GOOS == "darwin" || runtime.GOOS == "linux" {
+			documentsPath := filepath.Join(homeDir, "Documents")
+			if _, err := os.Stat(documentsPath); err == nil {
+				paths = append(paths, QuickPath{Name: "Documents", Path: documentsPath})
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(paths)
+	})
+
 	// 파일 브라우저 API
 	http.HandleFunc("/api/files", func(w http.ResponseWriter, r *http.Request) {
 		enableCORS(w)
@@ -1896,7 +1939,12 @@ func main() {
 
 		path := r.URL.Query().Get("path")
 		if path == "" {
-			path = "C:\\Users\\jkisi\\Desktop\\2026"
+			// 기본 경로: 사용자 홈 디렉토리
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				homeDir = "/"
+			}
+			path = homeDir
 		}
 
 		// 경로 읽기

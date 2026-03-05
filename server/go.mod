@@ -1,4 +1,4 @@
-module github.com/jkisi/claude-pocket/server
+module github.com/Epsilondelta-ai/rico/server
 
 go 1.25.0
 

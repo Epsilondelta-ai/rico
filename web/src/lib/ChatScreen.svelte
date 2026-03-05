@@ -70,10 +70,20 @@
     lastInitialMessagesLength = initialMessages.length;
   }
 
-  onMount(() => {
+  onMount(async () => {
     // 메시지 불러올 때 이미지 경로 파싱 + 시스템 메시지 필터링
     localMessages = processMessages([...initialMessages].filter(m => !m.isSystem));
     lastInitialMessagesLength = initialMessages.length;
+
+    // 퀵 경로 로드 (서버에서 동적으로)
+    const quickPaths = await loadQuickPaths();
+    if (quickPaths.length > 0 && recentPaths.length === 0) {
+      recentPaths = quickPaths;
+      // 첫 번째 퀵 경로를 currentPath로 설정
+      if (!currentPath && quickPaths[0]) {
+        currentPath = quickPaths[0].path;
+      }
+    }
   });
 
   // 스크롤이 맨 아래인지 확인 (여유값 50px)
@@ -121,7 +131,7 @@
 
   // 파일 브라우저
   let showFileBrowser = false;
-  let currentPath = 'C:\\Users\\jkisi\\Desktop\\2026';
+  let currentPath = ''; // 서버에서 동적으로 받아옴
   let folderContents: { name: string; isDir: boolean }[] = [];
   let workingPath: string | null = null; // 선택된 작업 폴더 (메시지에 숨겨서 전송)
   let isLoadingFolder = false;
@@ -165,13 +175,21 @@
     } catch (e) {
       console.error('recent path load failed:', e);
     }
-    // 기본값
-    return [
-      { name: '홈', path: 'C:\\Users\\jkisi' },
-      { name: '바탕화면', path: 'C:\\Users\\jkisi\\Desktop' },
-      { name: '2026', path: 'C:\\Users\\jkisi\\Desktop\\2026' },
-      { name: 'eb', path: 'C:\\Users\\jkisi\\Desktop\\2026\\eb' },
-    ];
+    // 기본값은 빈 배열 (서버에서 퀵 경로 로드)
+    return [];
+  }
+
+  // 서버에서 퀵 경로 (홈, 바탕화면 등) 가져오기
+  async function loadQuickPaths(): Promise<{ name: string; path: string }[]> {
+    try {
+      const res = await fetch(`${API_BASE}/api/quick-paths`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.error('quick paths load failed:', e);
+    }
+    return [];
   }
 
   function saveRecentPath(path: string) {
