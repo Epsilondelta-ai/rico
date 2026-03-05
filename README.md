@@ -10,6 +10,8 @@
 
 모바일에서 Claude Code를 사용할 수 있게 해주는 PWA 클라이언트예요. Go 브릿지 서버를 통해 Claude Code CLI와 통신하고, 실시간 WebSocket 연결로 빠른 응답을 제공합니다.
 
+![Rico Screenshots](./screenshots/rico-mockup.png)
+
 ## Features
 
 - **Mobile-First PWA**: 홈 화면에 설치하여 네이티브 앱처럼 사용
