@@ -480,9 +480,11 @@ type StatusPayload struct {
 }
 
 type ResponsePayload struct {
-	Text        string   `json:"text"`
-	IsComplete  bool     `json:"isComplete"`
-	Suggestions []string `json:"suggestions,omitempty"`
+	Text        string       `json:"text"`
+	IsComplete  bool         `json:"isComplete"`
+	Suggestions []string     `json:"suggestions,omitempty"`
+	ToolsUsed   []string     `json:"toolsUsed,omitempty"`   // 사용된 도구 목록 (실시간)
+	ToolDetails []ToolDetail `json:"toolDetails,omitempty"` // 도구 상세 정보
 }
 
 type ErrorPayload struct {
@@ -493,6 +495,142 @@ type ErrorPayload struct {
 type QueuePayload struct {
 	Position int    `json:"position"`
 	Message  string `json:"message,omitempty"`
+}
+
+// ============ 도구 인스펙터 ============
+
+// 도구 사용 상세 정보
+type ToolDetail struct {
+	Name        string   `json:"name"`                  // "Read", "Edit", "Grep" 등
+	File        string   `json:"file,omitempty"`        // 파일 경로
+	Offset      int      `json:"offset,omitempty"`      // 시작 줄 (Read)
+	Limit       int      `json:"limit,omitempty"`       // 줄 수 (Read)
+	Line        int      `json:"line,omitempty"`        // 수정 줄 번호 (Edit, 대략적)
+	OldString   string   `json:"oldString,omitempty"`   // 변경 전 문자열 (Edit)
+	NewString   string   `json:"newString,omitempty"`   // 변경 후 문자열 (Edit)
+	Pattern     string   `json:"pattern,omitempty"`     // 검색 패턴 (Grep)
+	Command     string   `json:"command,omitempty"`     // 실행 명령어 (Bash)
+	Suggestions []string `json:"suggestions,omitempty"` // 제안 (StructuredOutput)
+}
+
+// tool_use input에서 파일 경로 추출
+func extractFilePathFromInput(input interface{}) string {
+	if input == nil {
+		return ""
+	}
+	inputMap, ok := input.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	// 다양한 도구에서 사용하는 파일 경로 필드들
+	pathFields := []string{"file_path", "path", "pattern", "command", "query"}
+	for _, field := range pathFields {
+		if val, ok := inputMap[field].(string); ok && val != "" {
+			return val
+		}
+	}
+	return ""
+}
+
+// stream-json 이벤트에서 도구 이름과 파일경로로 상태 메시지 생성
+func getToolStatusMessage(toolName string, filePath string) string {
+	// 파일 경로에서 파일명만 추출
+	fileName := filePath
+	if filePath != "" {
+		// 경로에서 파일명만 추출 (마지막 / 또는 \ 이후)
+		for i := len(filePath) - 1; i >= 0; i-- {
+			if filePath[i] == '/' || filePath[i] == '\\' {
+				fileName = filePath[i+1:]
+				break
+			}
+		}
+	}
+
+	// 파일명이 있으면 "도구: 파일명" 형식으로
+	if fileName != "" {
+		return toolName + ": " + fileName
+	}
+
+	// 파일명이 없으면 도구 이름만
+	return toolName
+}
+
+// tool_use input에서 상세 정보 추출
+func extractToolDetail(toolName string, input interface{}) ToolDetail {
+	detail := ToolDetail{Name: toolName}
+
+	if input == nil {
+		return detail
+	}
+
+	inputMap, ok := input.(map[string]interface{})
+	if !ok {
+		return detail
+	}
+
+	// 파일 경로 추출
+	pathFields := []string{"file_path", "path", "notebook_path"}
+	for _, field := range pathFields {
+		if val, ok := inputMap[field].(string); ok && val != "" {
+			detail.File = val
+			break
+		}
+	}
+
+	// Read 도구: offset, limit 추출
+	if toolName == "Read" {
+		if offset, ok := inputMap["offset"].(float64); ok {
+			detail.Offset = int(offset)
+		}
+		if limit, ok := inputMap["limit"].(float64); ok {
+			detail.Limit = int(limit)
+		}
+	}
+
+	// Edit 도구: old_string, new_string 추출
+	if toolName == "Edit" {
+		if oldStr, ok := inputMap["old_string"].(string); ok {
+			detail.OldString = oldStr
+		}
+		if newStr, ok := inputMap["new_string"].(string); ok {
+			detail.NewString = newStr
+		}
+	}
+
+	// Grep 도구: pattern 저장
+	if toolName == "Grep" {
+		if pattern, ok := inputMap["pattern"].(string); ok {
+			detail.Pattern = pattern
+		}
+	}
+
+	// Bash 도구: command 저장
+	if toolName == "Bash" {
+		if cmd, ok := inputMap["command"].(string); ok {
+			detail.Command = cmd
+		}
+	}
+
+	// Glob 도구: pattern 저장
+	if toolName == "Glob" {
+		if pattern, ok := inputMap["pattern"].(string); ok {
+			detail.Pattern = pattern
+		}
+	}
+
+	// StructuredOutput 도구: suggestions 저장
+	if toolName == "StructuredOutput" {
+		if suggestionsRaw, ok := inputMap["suggestions"].([]interface{}); ok {
+			for _, s := range suggestionsRaw {
+				if str, ok := s.(string); ok {
+					detail.Suggestions = append(detail.Suggestions, str)
+				}
+			}
+		}
+	}
+
+	return detail
 }
 
 // ============ 세션/메시지 저장소 ============
@@ -510,11 +648,13 @@ type ClaudeResponse struct {
 }
 
 type ChatMessage struct {
-	ID        string `json:"id"`
-	Text      string `json:"text"`
-	IsUser    bool   `json:"isUser"`
-	Timestamp int64  `json:"timestamp"`
-	IsSystem  bool   `json:"isSystem,omitempty"` // 시스템 메시지 (세션 복원 시 필터링)
+	ID          string       `json:"id"`
+	Text        string       `json:"text"`
+	IsUser      bool         `json:"isUser"`
+	Timestamp   int64        `json:"timestamp"`
+	IsSystem    bool         `json:"isSystem,omitempty"`    // 시스템 메시지 (세션 복원 시 필터링)
+	ToolsUsed   []string     `json:"toolsUsed,omitempty"`   // 사용된 도구 목록 (예: "Read: main.go") - 호환용
+	ToolDetails []ToolDetail `json:"toolDetails,omitempty"` // 도구 상세 정보
 }
 
 type Session struct {
@@ -1062,7 +1202,7 @@ type ClaudeRunner struct {
 	isRunning            bool
 	mu                   sync.Mutex
 	queue                []QueueItem
-	onOutput             func(text string, isComplete bool, suggestions []string)
+	onOutput             func(text string, isComplete bool, suggestions []string, toolsUsed []string, toolDetails []ToolDetail)
 	onStatus             func(state, task string)
 	onError              func(code, message string)
 	onQueue              func(position int)                          // 큐 위치 알림
@@ -1122,14 +1262,14 @@ func (cr *ClaudeRunner) execute(prompt string, ricoSessionID string) {
 		}
 	}
 
-	// Claude Code CLI 실행 (--print --output-format json 모드)
+	// Claude Code CLI 실행 (--print --verbose --output-format stream-json 모드)
 	log.Printf("Claude 실행 시작 (Rico세션: %s, Claude세션: %s): %s", ricoSessionID, claudeSessionID, prompt)
 
 	// SOUL 프롬프트 파일 가져오기
 	soulPromptFile, soulCleanup := getSoulPromptFile()
 
 	var cmd *exec.Cmd
-	args := []string{"--print", "--output-format", "json"}
+	args := []string{"--print", "--verbose", "--output-format", "stream-json"}
 
 	// 세션 이어가기
 	if claudeSessionID != "" {
@@ -1190,34 +1330,94 @@ func (cr *ClaudeRunner) execute(prompt string, ricoSessionID string) {
 		stdin.Write([]byte(prompt))
 	}()
 
-	// 응답을 모아서 한 번에 전송
+	// stream-json 모드: 실시간 이벤트 파싱
 	go func() {
-		var output strings.Builder
+		var lastResultJSON string // 마지막 result 이벤트의 JSON
+		var toolsUsed []string
+		var toolDetails []ToolDetail
+		toolsUsedMap := make(map[string]bool)
 
 		// stderr 읽기 (로그용) - stdout과 동시에 시작해야 cmd.Wait()이 빨리 끝남
 		go func() {
 			errScanner := bufio.NewScanner(stderr)
 			for errScanner.Scan() {
-				log.Printf("Claude stderr: %s", errScanner.Text())
+				line := errScanner.Text()
+				log.Printf("Claude stderr: %s", line)
 			}
 		}()
 
-		// stdout 읽기
+		// stdout 읽기 - stream-json 이벤트 처리
 		scanner := bufio.NewScanner(stdout)
-		// 긴 JSON 응답을 위해 버퍼 크기 증가
 		buf := make([]byte, 0, 64*1024)
 		scanner.Buffer(buf, 1024*1024)
+
 		for scanner.Scan() {
 			line := scanner.Text()
-			if output.Len() > 0 {
-				output.WriteString("\n")
+			if line == "" {
+				continue
 			}
-			output.WriteString(line)
+
+			// JSON 이벤트 파싱
+			var event map[string]interface{}
+			if err := json.Unmarshal([]byte(line), &event); err != nil {
+				log.Printf("stream-json 파싱 실패: %v, line: %s", err, line)
+				continue
+			}
+
+			eventType, _ := event["type"].(string)
+
+			// 이벤트 타입별 처리
+			switch eventType {
+			case "assistant":
+				// 도구 사용 이벤트
+				if message, ok := event["message"].(map[string]interface{}); ok {
+					if content, ok := message["content"].([]interface{}); ok {
+						for _, c := range content {
+							if block, ok := c.(map[string]interface{}); ok {
+								if block["type"] == "tool_use" {
+									toolName, _ := block["name"].(string)
+									filePath := extractFilePathFromInput(block["input"])
+									if toolName != "" {
+										status := getToolStatusMessage(toolName, filePath)
+										// 중복 방지하여 도구 목록에 추가
+										if !toolsUsedMap[status] {
+											toolsUsedMap[status] = true
+											toolsUsed = append(toolsUsed, status)
+											// 상세 정보도 추가
+											detail := extractToolDetail(toolName, block["input"])
+											toolDetails = append(toolDetails, detail)
+										}
+										if cr.onStatus != nil {
+											cr.onStatus("working", status)
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+
+			case "content_block_start":
+				// 콘텐츠 블록 시작 (tool_use 포함)
+				if contentBlock, ok := event["content_block"].(map[string]interface{}); ok {
+					if contentBlock["type"] == "tool_use" {
+						toolName, _ := contentBlock["name"].(string)
+						if cr.onStatus != nil && toolName != "" {
+							status := getToolStatusMessage(toolName, "")
+							cr.onStatus("working", status)
+						}
+					}
+				}
+
+			case "result":
+				// 최종 결과 이벤트 - JSON 저장
+				lastResultJSON = line
+			}
 		}
 
 		// 완료 대기
 		err := cr.cmd.Wait()
-		log.Printf("Claude 완료. 출력 길이: %d", output.Len())
+		log.Printf("Claude 완료. 도구 사용: %d개", len(toolsUsed))
 
 		if err != nil {
 			log.Printf("Claude 에러: %v", err)
@@ -1226,24 +1426,40 @@ func (cr *ClaudeRunner) execute(prompt string, ricoSessionID string) {
 			}
 		}
 
-		// JSON 응답 파싱
+		// stream-json의 result 이벤트에서 응답 추출
+		if lastResultJSON == "" {
+			log.Printf("result 이벤트 없음")
+			// 세션 상태 idle로 복원
+			if ricoSessionID != "" {
+				setSessionWorking(ricoSessionID, false)
+			}
+			if cr.onStatus != nil {
+				cr.onStatus("idle", "")
+			}
+			cr.processNext()
+			return
+		}
+
+		// result 이벤트를 ClaudeResponse로 파싱
 		var claudeResp ClaudeResponse
-		responseText := output.String()
-		log.Printf("Claude 원본 출력: %s", responseText)
+		responseText := lastResultJSON
+
 		if err := json.Unmarshal([]byte(responseText), &claudeResp); err != nil {
 			log.Printf("JSON 파싱 실패, 원본 텍스트 사용: %v", err)
 			// JSON 파싱 실패시 원본 텍스트 그대로 사용
-			if cr.onOutput != nil && output.Len() > 0 {
-				cr.onOutput(responseText, true, nil)
+			if cr.onOutput != nil && len(responseText) > 0 {
+				cr.onOutput(responseText, true, nil, toolsUsed, toolDetails)
 			}
 			// JSON 파싱 실패해도 세션에 저장
 			if cr.sessionStore != nil && ricoSessionID != "" && responseText != "" {
 				botMsg := ChatMessage{
-					ID:        time.Now().Format("20060102150405") + "_bot",
-					Text:      responseText,
-					IsUser:    false,
-					Timestamp: time.Now().UnixMilli(),
-					IsSystem:  false,
+					ID:          time.Now().Format("20060102150405") + "_bot",
+					Text:        responseText,
+					IsUser:      false,
+					Timestamp:   time.Now().UnixMilli(),
+					IsSystem:    false,
+					ToolsUsed:   toolsUsed,
+					ToolDetails: toolDetails,
 				}
 				cr.sessionStore.AddMessage(ricoSessionID, botMsg)
 				log.Printf("JSON 파싱 실패 응답도 세션 저장 완료 (세션: %s)", ricoSessionID)
@@ -1270,6 +1486,13 @@ func (cr *ClaudeRunner) execute(prompt string, ricoSessionID string) {
 				suggestions = claudeResp.StructuredOutput.Suggestions
 				if len(suggestions) > 0 {
 					log.Printf("[제안] suggestions=%v", suggestions)
+					// StructuredOutput toolDetail에 suggestions 추가
+					for i := range toolDetails {
+						if toolDetails[i].Name == "StructuredOutput" {
+							toolDetails[i].Suggestions = suggestions
+							break
+						}
+					}
 				}
 			} else {
 				// 기존 방식 (result 필드) - JSON 스키마 없이 실행된 경우
@@ -1284,11 +1507,13 @@ func (cr *ClaudeRunner) execute(prompt string, ricoSessionID string) {
 				if isPersonaRecharge {
 					// 페르소나 충전: Claude 응답은 isSystem: true로 숨기고, "충전 완료" 메시지는 isSystem: false로 표시
 					botMsg := ChatMessage{
-						ID:        time.Now().Format("20060102150405") + "_bot",
-						Text:      finalResponse,
-						IsUser:    false,
-						Timestamp: time.Now().UnixMilli(),
-						IsSystem:  true, // Claude 응답은 숨김
+						ID:          time.Now().Format("20060102150405") + "_bot",
+						Text:        finalResponse,
+						IsUser:      false,
+						Timestamp:   time.Now().UnixMilli(),
+						IsSystem:    true, // Claude 응답은 숨김
+						ToolsUsed:   toolsUsed,
+						ToolDetails: toolDetails,
 					}
 					cr.sessionStore.AddMessage(ricoSessionID, botMsg)
 
@@ -1304,15 +1529,17 @@ func (cr *ClaudeRunner) execute(prompt string, ricoSessionID string) {
 				} else {
 					// 일반 응답
 					botMsg := ChatMessage{
-						ID:        time.Now().Format("20060102150405") + "_bot",
-						Text:      finalResponse,
-						IsUser:    false,
-						Timestamp: time.Now().UnixMilli(),
-						IsSystem:  false,
+						ID:          time.Now().Format("20060102150405") + "_bot",
+						Text:        finalResponse,
+						IsUser:      false,
+						Timestamp:   time.Now().UnixMilli(),
+						IsSystem:    false,
+						ToolsUsed:   toolsUsed,
+						ToolDetails: toolDetails,
 					}
 					cr.sessionStore.AddMessage(ricoSessionID, botMsg)
 				}
-				log.Printf("응답 세션 저장 완료 (세션: %s)", ricoSessionID)
+				log.Printf("응답 세션 저장 완료 (세션: %s), 도구: %v", ricoSessionID, toolsUsed)
 				logSession(ricoSessionID, "[CLAUDE_RAW] %s", responseText)
 				logSession(ricoSessionID, "[CLAUDE] %s", finalResponse)
 
@@ -1327,10 +1554,10 @@ func (cr *ClaudeRunner) execute(prompt string, ricoSessionID string) {
 			if cr.onOutput != nil {
 				if finalResponse != "" {
 					log.Printf("응답 전송: %s", finalResponse[:min(50, len(finalResponse))])
-					cr.onOutput(finalResponse, true, suggestions)
+					cr.onOutput(finalResponse, true, suggestions, toolsUsed, toolDetails)
 				} else {
 					log.Printf("빈 응답 전송")
-					cr.onOutput("", true, nil)
+					cr.onOutput("", true, nil, toolsUsed, toolDetails)
 				}
 			}
 		}
@@ -1688,7 +1915,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		runner: runner,
 	}
 
-	runner.onOutput = func(text string, isComplete bool, suggestions []string) {
+	runner.onOutput = func(text string, isComplete bool, suggestions []string, toolsUsed []string, toolDetails []ToolDetail) {
 		// 세션 저장은 execute 내부에서 ricoSessionID로 직접 처리
 		// 여기서는 WebSocket 전송만 담당
 
@@ -1698,6 +1925,8 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 				Text:        text,
 				IsComplete:  isComplete,
 				Suggestions: suggestions,
+				ToolsUsed:   toolsUsed,
+				ToolDetails: toolDetails,
 			},
 			Timestamp: time.Now().UnixMilli(),
 		})
@@ -1985,7 +2214,7 @@ func main() {
 		})
 	})
 
-	// 파일 내용 읽기 API
+	// 파일 내용 읽기 API (offset/limit 지원)
 	http.HandleFunc("/api/file", func(w http.ResponseWriter, r *http.Request) {
 		enableCORS(w)
 		if r.Method == "OPTIONS" {
@@ -1997,6 +2226,17 @@ func main() {
 		if path == "" {
 			http.Error(w, "path required", http.StatusBadRequest)
 			return
+		}
+
+		// offset, limit 파라미터 (줄 단위)
+		offsetStr := r.URL.Query().Get("offset")
+		limitStr := r.URL.Query().Get("limit")
+		var offset, limit int
+		if offsetStr != "" {
+			fmt.Sscanf(offsetStr, "%d", &offset)
+		}
+		if limitStr != "" {
+			fmt.Sscanf(limitStr, "%d", &limit)
 		}
 
 		// 허용된 확장자만
@@ -2032,12 +2272,41 @@ func main() {
 			return
 		}
 
+		// offset/limit이 지정된 경우 줄 단위로 자르기
+		finalContent := string(content)
+		startLine := 1 // 응답에 포함할 시작 줄 번호
+		if offset > 0 || limit > 0 {
+			lines := strings.Split(finalContent, "\n")
+			totalLines := len(lines)
+
+			// offset은 0-based 인덱스로 사용
+			startIdx := offset
+			if startIdx < 0 {
+				startIdx = 0
+			}
+			if startIdx >= totalLines {
+				finalContent = ""
+				startLine = startIdx + 1
+			} else {
+				endIdx := totalLines
+				if limit > 0 {
+					endIdx = startIdx + limit
+					if endIdx > totalLines {
+						endIdx = totalLines
+					}
+				}
+				finalContent = strings.Join(lines[startIdx:endIdx], "\n")
+				startLine = startIdx + 1 // 1-based 줄 번호
+			}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"path":    path,
-			"name":    filepath.Base(path),
-			"ext":     ext,
-			"content": string(content),
+			"path":      path,
+			"name":      filepath.Base(path),
+			"ext":       ext,
+			"content":   finalContent,
+			"startLine": startLine, // 도구 인스펙터용: 줄 번호 시작점
 		})
 	})
 

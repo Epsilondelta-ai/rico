@@ -4,8 +4,8 @@ import fs from 'fs'
 import path from 'path'
 
 // SSL 인증서 경로 (환경변수 또는 기본 경로)
-const sslKeyPath = process.env.VITE_SSL_KEY_PATH || '../server/certs/server.key';
-const sslCertPath = process.env.VITE_SSL_CERT_PATH || '../server/certs/server.crt';
+const sslKeyPath = process.env.VITE_SSL_KEY_PATH || '../server/certs/desktop-i5hhv32.tail804969.ts.net.key';
+const sslCertPath = process.env.VITE_SSL_CERT_PATH || '../server/certs/desktop-i5hhv32.tail804969.ts.net.crt';
 
 // SSL 파일이 존재하는지 확인
 const keyExists = fs.existsSync(path.resolve(__dirname, sslKeyPath));

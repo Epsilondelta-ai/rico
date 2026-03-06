@@ -4,6 +4,20 @@
   import { _ } from 'svelte-i18n';
   import { API_BASE } from './config';
 
+  // 도구 상세 정보 인터페이스
+  interface ToolDetail {
+    name: string;      // "Read", "Edit", "Grep" 등
+    file?: string;     // 파일 경로
+    offset?: number;   // 시작 줄 (Read)
+    limit?: number;    // 줄 수 (Read)
+    line?: number;     // 수정 줄 번호 (Edit)
+    oldString?: string;  // 변경 전 문자열 (Edit)
+    newString?: string;  // 변경 후 문자열 (Edit)
+    pattern?: string;    // 검색 패턴 (Grep, Glob)
+    command?: string;    // 실행 명령어 (Bash)
+    suggestions?: string[]; // 제안 (StructuredOutput)
+  }
+
   interface ChatMessage {
     id: string;
     text: string;
@@ -12,12 +26,17 @@
     imageUrl?: string; // 첨부 이미지 URL (유저)
     imageUrls?: string[]; // 이미지 URL들 (Claude 응답)
     isSystem?: boolean; // 시스템 메시지 (페르소나 충전 등) - 세션 복원 시 필터링
+    toolsUsed?: string[]; // 사용된 도구 목록 (예: "Read: main.go") - 호환용
+    toolDetails?: ToolDetail[]; // 도구 상세 정보
   }
 
   export let lastResponse: string | null = null;
   export let lastSuggestions: string[] = [];
+  export let lastToolsUsed: string[] = [];
+  export let lastToolDetails: ToolDetail[] = [];
   export let isConnected: boolean = false;
   export let claudeState: string = 'idle';
+  export let claudeTask: string = ''; // 현재 수행 중인 작업 상태
   export let sessionId: string | null = null;
   export let initialMessages: ChatMessage[] = [];
   export let onMessagesChange: (messages: ChatMessage[]) => void = () => {};
@@ -123,6 +142,10 @@
   let typingMessage = '';
   let lastProcessedResponse: string | null = null; // 마지막 처리한 응답 (중복 방지)
 
+  // 실시간 도구 사용 표시 (작업 중일 때)
+  let pendingTools: string[] = [];
+  let pendingToolsSet = new Set<string>();
+
   // 새 메시지 구분선 (재접속 시 마지막으로 본 메시지 인덱스)
   let newMessageDividerIndex: number | null = null;
 
@@ -161,6 +184,10 @@
   // 이미지 뷰어
   let showImageViewer = false;
   let viewingImageUrl: string | null = null;
+
+  // 도구 인스펙터 (펼침/접힘 상태 및 파일 내용 캐시)
+  let expandedToolKey: string | null = null; // "messageId:toolIndex" 형식
+  let toolContentCache: Record<string, { content: string; loading: boolean; error?: string }> = {};
 
   // 최근 이동 경로 (localStorage에서 로드)
   const RECENT_PATHS_KEY = 'rico_recent_paths';
@@ -385,6 +412,107 @@
     viewingImageUrl = null;
   }
 
+  // ============ 도구 인스펙터 함수들 ============
+
+  // 도구 상세 정보 토글
+  function toggleToolDetail(messageId: string, toolIndex: number) {
+    const key = `${messageId}:${toolIndex}`;
+    if (expandedToolKey === key) {
+      expandedToolKey = null;
+    } else {
+      expandedToolKey = key;
+    }
+  }
+
+  // 도구 파일 내용 조회 (토글 방식)
+  async function loadToolContent(cacheKey: string, detail: ToolDetail) {
+    // 이미 로드되어 있으면 토글 (숨기기)
+    if (toolContentCache[cacheKey]) {
+      delete toolContentCache[cacheKey];
+      toolContentCache = { ...toolContentCache };
+      return;
+    }
+
+    toolContentCache[cacheKey] = { content: '', loading: true };
+    toolContentCache = { ...toolContentCache };
+
+    try {
+      let url = `${API_HOST}/api/file?path=${encodeURIComponent(detail.file || '')}`;
+      if (detail.offset) url += `&offset=${detail.offset}`;
+      if (detail.limit) url += `&limit=${detail.limit}`;
+
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        // 줄 번호 추가 (offset이 있으면 해당 줄부터 시작)
+        const startLine = detail.offset || 1;
+        const contentWithLineNumbers = addLineNumbers(data.content, startLine);
+        toolContentCache[cacheKey] = { content: contentWithLineNumbers, loading: false };
+      } else {
+        toolContentCache[cacheKey] = { content: '', loading: false, error: '파일을 읽을 수 없습니다' };
+      }
+    } catch (err) {
+      toolContentCache[cacheKey] = { content: '', loading: false, error: '파일을 읽을 수 없습니다' };
+    }
+    toolContentCache = { ...toolContentCache };
+  }
+
+  // 줄 번호 추가 함수
+  function addLineNumbers(content: string, startLine: number = 1): string {
+    const lines = content.split('\n');
+    const maxLineNum = startLine + lines.length - 1;
+    const padWidth = String(maxLineNum).length;
+
+    return lines.map((line, index) => {
+      const lineNum = String(startLine + index).padStart(padWidth, ' ');
+      return `${lineNum} │ ${line}`;
+    }).join('\n');
+  }
+
+  // 도구 상세 정보에서 범위 텍스트 생성
+  function getToolRangeText(detail: ToolDetail): string {
+    if (detail.name === 'Read' && detail.offset && detail.limit) {
+      return `${detail.offset}-${detail.offset + detail.limit - 1}줄`;
+    } else if (detail.name === 'Read' && detail.limit) {
+      return `1-${detail.limit}줄`;
+    } else if (detail.line) {
+      return `${detail.line}줄`;
+    }
+    return '';
+  }
+
+  // 도구 태그 라벨 생성
+  function getToolLabel(detail: ToolDetail): string {
+    const name = detail.name;
+
+    // 파일 경로가 있는 도구
+    if (detail.file) {
+      const fileName = detail.file.split(/[/\\]/).pop() || detail.file;
+      return `${name}: ${fileName}`;
+    }
+
+    // Bash: 명령어 표시 (첫 30자)
+    if (name === 'Bash' && detail.command) {
+      const cmd = detail.command.length > 30
+        ? detail.command.substring(0, 30) + '...'
+        : detail.command;
+      return `${name}: ${cmd}`;
+    }
+
+    // Grep/Glob: 패턴 표시
+    if ((name === 'Grep' || name === 'Glob') && detail.pattern) {
+      const pattern = detail.pattern.length > 20
+        ? detail.pattern.substring(0, 20) + '...'
+        : detail.pattern;
+      return `${name}: ${pattern}`;
+    }
+
+    // 기본: 도구 이름만
+    return name;
+  }
+
+  // ============ 끝: 도구 인스펙터 함수들 ============
+
   // 메시지 텍스트에서 이미지 경로 파싱 → imageUrl 변환
   function parseImageFromText(text: string): { imageUrl?: string; cleanText: string } {
     const imagePattern = /\n?\n?\(첨부 이미지: ([^)]+)\)$/;
@@ -561,9 +689,24 @@
     gfm: true,
   });
 
-  // claudeState가 idle이면 타이핑 표시 끄기 (재연결 시 상태 동기화)
+  // claudeState 변화에 따른 타이핑 표시 및 실시간 도구 목록 처리
   $: if (claudeState === 'idle') {
     isTyping = false;
+    // idle로 돌아오면 pendingTools 초기화 (응답 완료 후)
+    pendingTools = [];
+    pendingToolsSet = new Set<string>();
+  } else if (claudeState === 'working' && claudeTask) {
+    // 서버에서 task 정보가 오면 타이핑 메시지 업데이트
+    typingMessage = claudeTask;
+    isTyping = true;
+
+    // 도구 사용인 경우 pendingTools에 추가 (Read:, Edit:, Grep: 등으로 시작)
+    if (claudeTask.match(/^(Read|Edit|Grep|Glob|Write|Bash|Task|WebFetch|WebSearch|TodoWrite|StructuredOutput):/)) {
+      if (!pendingToolsSet.has(claudeTask)) {
+        pendingToolsSet.add(claudeTask);
+        pendingTools = [...pendingTools, claudeTask];
+      }
+    }
   }
 
   // 새 응답 처리 (중복 방지)
@@ -579,12 +722,18 @@
     // Claude 응답에서 이미지 경로 파싱
     const { imageUrls, cleanText } = parseFilePathsFromResponse(lastResponse);
 
+    // 도구 정보 저장 (현재 값을 캡처)
+    const toolsUsedToSave = lastToolsUsed.length > 0 ? [...lastToolsUsed] : undefined;
+    const toolDetailsToSave = lastToolDetails.length > 0 ? [...lastToolDetails] : undefined;
+
       const newMessage: ChatMessage = {
         id: Date.now().toString(),
         text: cleanText || lastResponse,
         isUser: false,
         timestamp: Date.now(),
         imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
+        toolsUsed: toolsUsedToSave,
+        toolDetails: toolDetailsToSave,
       };
       localMessages = [...localMessages, newMessage];
       onMessagesChange(localMessages);
@@ -873,6 +1022,134 @@
               <p class="text-[var(--text-secondary)] text-[15px] leading-[1.7] whitespace-pre-wrap mt-1">{message.text}</p>
             {/if}
           {:else}
+            <!-- 사용된 도구 목록 (클릭하여 상세 정보 보기) -->
+            {#if message.toolDetails && message.toolDetails.length > 0}
+              <div
+                class="flex flex-col gap-1 mt-1 mb-2"
+                on:touchstart|stopPropagation
+                on:touchend|stopPropagation
+              >
+                {#each message.toolDetails as detail, toolIndex}
+                  {@const toolKey = `${message.id}:${toolIndex}`}
+                  {@const isExpanded = expandedToolKey === toolKey}
+                  <div class="flex flex-col">
+                    <button
+                      class="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] rounded text-[11px] text-[var(--text-muted)] font-mono w-fit transition-colors cursor-pointer"
+                      on:click|stopPropagation={() => toggleToolDetail(message.id, toolIndex)}
+                    >
+                      <svg class="w-3 h-3 text-[var(--accent-primary)] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                      </svg>
+                      <span>{getToolLabel(detail)}</span>
+                      <svg class="w-3 h-3 transition-transform {isExpanded ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                      </svg>
+                    </button>
+                    {#if isExpanded}
+                      <div class="ml-4 mt-2 p-3 bg-[var(--bg-secondary)] rounded border border-[var(--border-primary)] text-[11px] space-y-3">
+                        <!-- 파일 경로 (있을 때만) -->
+                        {#if detail.file}
+                          <div class="text-[var(--text-muted)]">
+                            <span class="text-[var(--text-secondary)]">경로:</span> {detail.file}
+                          </div>
+                        {/if}
+
+                        <!-- Read: 범위 정보 + 내용 보기 버튼 -->
+                        {#if detail.name === 'Read'}
+                          {#if detail.offset !== undefined || detail.limit !== undefined}
+                            <div class="text-[var(--text-muted)]">
+                              <span class="text-[var(--text-secondary)]">범위:</span> {getToolRangeText(detail)}
+                            </div>
+                          {/if}
+                          <button
+                            class="px-3 py-1.5 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] text-white rounded text-[10px] transition-colors"
+                            on:click|stopPropagation={() => loadToolContent(toolKey, detail)}
+                          >
+                            {toolContentCache[toolKey] ? '내용 숨기기' : '내용 보기'}
+                          </button>
+                          {#if toolContentCache[toolKey]}
+                            {#if toolContentCache[toolKey].loading}
+                              <div class="text-[var(--text-muted)]">로딩 중...</div>
+                            {:else if toolContentCache[toolKey].error}
+                              <div class="text-[var(--red-primary)]">{toolContentCache[toolKey].error}</div>
+                            {:else}
+                              <pre data-tool-detail class="p-2 bg-[var(--bg-primary)] rounded overflow-x-auto text-[10px] text-[var(--text-secondary)] max-h-[200px] overflow-y-auto whitespace-pre-wrap">{toolContentCache[toolKey].content}</pre>
+                            {/if}
+                          {/if}
+                        {/if}
+
+                        <!-- Edit: 변경 전/후 표시 -->
+                        {#if detail.name === 'Edit' && (detail.oldString || detail.newString)}
+                          <div class="space-y-3">
+                            {#if detail.oldString}
+                              <div>
+                                <span class="text-[var(--red-primary)] font-medium">- 변경 전:</span>
+                                <pre data-tool-detail class="mt-2 p-2 bg-[#2a1a1a] border border-[var(--red-primary)]/30 rounded overflow-x-auto text-[10px] text-[var(--text-secondary)] max-h-[150px] overflow-y-auto whitespace-pre-wrap">{addLineNumbers(detail.oldString)}</pre>
+                              </div>
+                            {/if}
+                            {#if detail.newString}
+                              <div>
+                                <span class="text-[var(--green-primary)] font-medium">+ 변경 후:</span>
+                                <pre data-tool-detail class="mt-2 p-2 bg-[#1a2a1a] border border-[var(--green-primary)]/30 rounded overflow-x-auto text-[10px] text-[var(--text-secondary)] max-h-[150px] overflow-y-auto whitespace-pre-wrap">{addLineNumbers(detail.newString)}</pre>
+                              </div>
+                            {/if}
+                          </div>
+                        {/if}
+
+                        <!-- Bash: 명령어 표시 -->
+                        {#if detail.name === 'Bash' && detail.command}
+                          <div class="text-[var(--text-muted)]">
+                            <span class="text-[var(--text-secondary)]">명령어:</span>
+                            <pre data-tool-detail class="mt-2 p-2 bg-[var(--bg-primary)] rounded overflow-x-auto text-[10px] text-[var(--text-secondary)] max-h-[100px] overflow-y-auto whitespace-pre-wrap">{detail.command}</pre>
+                          </div>
+                        {/if}
+
+                        <!-- Grep/Glob: 검색 패턴 표시 -->
+                        {#if (detail.name === 'Grep' || detail.name === 'Glob') && detail.pattern}
+                          <div class="text-[var(--text-muted)]">
+                            <span class="text-[var(--text-secondary)]">패턴:</span>
+                            <code class="ml-1 px-1.5 py-0.5 bg-[var(--bg-tertiary)] rounded text-[var(--accent-primary)]">{detail.pattern}</code>
+                          </div>
+                        {/if}
+
+                        <!-- StructuredOutput: suggestions 표시 -->
+                        {#if detail.name === 'StructuredOutput' && detail.suggestions && detail.suggestions.length > 0}
+                          <div class="text-[var(--text-muted)] mt-1">
+                            <span class="text-[var(--text-secondary)]">제안:</span>
+                            <div class="flex flex-col gap-1 mt-1">
+                              {#each detail.suggestions as suggestion, i}
+                                <span class="text-[11px] px-2 py-1 bg-[var(--bg-primary)] rounded text-[var(--text-tertiary)]">
+                                  {i + 1}. {suggestion}
+                                </span>
+                              {/each}
+                            </div>
+                          </div>
+                        {/if}
+
+                      </div>
+                    {/if}
+                  </div>
+                {/each}
+              </div>
+            {:else if message.toolsUsed && message.toolsUsed.length > 0}
+              <!-- toolDetails가 없으면 기존 toolsUsed 표시 (이전 메시지 호환) -->
+              <div
+                class="flex flex-col gap-1 mt-1 mb-2"
+                on:touchstart|stopPropagation
+                on:touchend|stopPropagation
+              >
+                {#each message.toolsUsed as tool}
+                  <div class="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[var(--bg-tertiary)] rounded text-[11px] text-[var(--text-muted)] font-mono w-fit">
+                    <svg class="w-3 h-3 text-[var(--accent-primary)] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    <span>{tool}</span>
+                  </div>
+                {/each}
+              </div>
+            {/if}
             <div class="prose prose-rico max-w-none mt-1">
               {@html parseMarkdown(message.text)}
             </div>
@@ -897,22 +1174,39 @@
       </div>
     {/each}
 
-    <!-- 타이핑 표시 - 더 컴팩트하게 -->
+    <!-- 타이핑 표시 - 실시간 도구 태그 포함 -->
     {#if isTyping}
-      <div class="flex gap-2.5 py-2 px-2.5 -mx-2.5 items-center">
+      <div class="flex gap-2.5 py-2 px-2.5 -mx-2.5 items-start">
         <div class="flex-shrink-0">
           <div class="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--accent-primary)] to-[var(--accent-secondary)] flex items-center justify-center text-white text-xs font-bold shadow-md" style="box-shadow: 0 2px 8px var(--accent-primary-shadow);">
             {avatarChar}
           </div>
         </div>
-        <div class="flex-1 flex items-center gap-1">
-          <span class="text-[var(--text-dimmed)] text-sm">{typingMessage}</span>
-          <span class="typing-dots">
-            <span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
-          </span>
+        <div class="flex-1 min-w-0">
+          <!-- 실시간 도구 사용 목록 -->
+          {#if pendingTools.length > 0}
+            <div class="flex flex-col gap-1 mb-2">
+              {#each pendingTools as tool}
+                <div class="inline-flex items-center gap-1.5 px-2 py-0.5 bg-[var(--bg-tertiary)] rounded text-[11px] text-[var(--text-muted)] font-mono w-fit animate-fade-in">
+                  <svg class="w-3 h-3 text-[var(--accent-primary)] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                  </svg>
+                  <span>{tool}</span>
+                </div>
+              {/each}
+            </div>
+          {/if}
+          <!-- 현재 작업 상태 -->
+          <div class="flex items-center gap-1">
+            <span class="text-[var(--text-dimmed)] text-sm">{typingMessage}</span>
+            <span class="typing-dots">
+              <span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>
+            </span>
+          </div>
         </div>
         <button
-          class="px-3 py-1.5 bg-[#f87171]/10 hover:bg-[#f87171]/20 text-[var(--red-primary)] text-xs font-medium rounded-full transition-colors flex-shrink-0"
+          class="px-3 py-1.5 bg-[#f87171]/10 hover:bg-[#f87171]/20 text-[var(--red-primary)] text-xs font-medium rounded-full transition-colors flex-shrink-0 self-start"
           on:click={handleCancel}
           aria-label={$_('chat.cancel')}
         >
@@ -1443,7 +1737,8 @@
     border: 1px solid var(--border-primary);
     border-radius: 12px;
     padding: 0;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
     margin: 12px 0;
     max-width: 100%;
   }
@@ -1610,22 +1905,33 @@
 
   :global(.prose-rico .code-block-wrapper .copy-btn) {
     position: absolute;
-    top: 10px;
-    right: 10px;
-    padding: 6px 10px;
-    background-color: var(--border-primary);
-    border: none;
+    top: 8px;
+    right: 8px;
+    padding: 6px 8px;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-primary);
     border-radius: 6px;
     color: var(--text-muted);
     font-size: 11px;
     font-weight: 500;
     cursor: pointer;
-    opacity: 0;
+    opacity: 0.7;
     transition: all 0.15s;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   :global(.prose-rico .code-block-wrapper:hover .copy-btn) {
     opacity: 1;
+  }
+
+  /* 모바일에서는 항상 보이게 */
+  @media (hover: none) {
+    :global(.prose-rico .code-block-wrapper .copy-btn) {
+      opacity: 1;
+    }
   }
 
   :global(.prose-rico .code-block-wrapper .copy-btn:hover) {

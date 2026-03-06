@@ -72,8 +72,11 @@
   let currentSessionId: string | null = null;
   let lastResponse: string | null = null;
   let lastSuggestions: string[] = [];
+  let lastToolsUsed: string[] = [];
+  let lastToolDetails: any[] = [];
   let isConnected = false;
   let claudeState = 'idle';
+  let claudeTask = ''; // 현재 수행 중인 작업 (도구 사용 중 등)
 
   // 세션별 메시지 저장소 (서버에서 로드)
   let sessionMessages: Record<string, ChatMessage[]> = {};
@@ -243,12 +246,15 @@
       switch (data.type) {
         case 'status':
           claudeState = data.payload.state;
+          claudeTask = data.payload.task || '';
           break;
         case 'response':
           if (data.payload.text) {
             lastResponse = data.payload.text;
             lastSuggestions = data.payload.suggestions || [];
-            setTimeout(() => { lastResponse = null; lastSuggestions = []; }, 100);
+            lastToolsUsed = data.payload.toolsUsed || [];
+            lastToolDetails = data.payload.toolDetails || [];
+            setTimeout(() => { lastResponse = null; lastSuggestions = []; lastToolsUsed = []; lastToolDetails = []; }, 100);
 
             // 응답 받으면 읽음 처리 (현재 세션의 읽음 카운트 +1)
             if (currentSessionId) {
@@ -440,8 +446,11 @@
   <ChatScreen
     {lastResponse}
     {lastSuggestions}
+    {lastToolsUsed}
+    {lastToolDetails}
     {isConnected}
     {claudeState}
+    {claudeTask}
     sessionId={currentSessionId}
     initialMessages={currentMessages}
     onMessagesChange={updateMessages}
