@@ -2,7 +2,7 @@
 
 **Remote Claude Code Operator**
 
-한국어 | [English](README-en.md)
+[English](docs/README-en.md) | 한국어 | [简体中文](docs/README-zh.md) | [日本語](docs/README-ja.md) | [Español](docs/README-es.md) | [Português (BR)](docs/README-pt-br.md) | [Français](docs/README-fr.md) | [Русский](docs/README-ru.md) | [Deutsch](docs/README-de.md)
 
 ### Q. 이게 뭐임?
 
@@ -369,20 +369,30 @@ npm run dev
 
 ---
 
-## Roadmap
+## Note
 
-### 다음 개선 목표
+이 프로젝트는 개인 데스크탑에서 실행하는 셀프 호스팅 도구입니다. 별도의 인증 시스템은 포함되어 있지 않으므로, 네트워크 접근 제어(Tailscale VPN 등)를 통해 보안을 관리해주세요.
 
-1. **음성 입력**: 더 편하게 텍스트 전송
+---
 
-> 아직 완벽하지 않아서 개선이 필요합니다. 기여를 환영해요!
+## Contributing
+
+Issues와 Pull Requests를 환영합니다.
+
+### 개발 환경 세팅
+
+1. 이 저장소를 Fork & Clone
+2. [Installation](#installation) 단계를 따라 환경 설정
+3. [Development](#development) 섹션을 참고하여 로컬 개발 서버 실행
+
+### PR 가이드라인
+
+- 커밋 메시지는 영어로 작성
+- 기존 코드 스타일을 따라주세요
+- 가능하면 변경 사항에 대한 설명을 PR 본문에 포함
 
 ---
 
 ## License
 
 MIT License - see [LICENSE](LICENSE)
-
-## Contributing
-
-Issues와 Pull Requests를 환영합니다.

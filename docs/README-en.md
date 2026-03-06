@@ -2,13 +2,15 @@
 
 **Remote Claude Code Operator**
 
-[한국어](README.md) | English
+English | [한국어](../README.md) | [简体中文](README-zh.md) | [日本語](README-ja.md) | [Español](README-es.md) | [Português (BR)](README-pt-br.md) | [Français](README-fr.md) | [Русский](README-ru.md) | [Deutsch](README-de.md)
 
 ### Q. What is this?
 
 **A. I made this because I wanted to work with Claude Code while lying down.**
 
 It's a PWA client that lets you use Claude Code on mobile devices. It communicates with Claude Code CLI through a Go bridge server and provides fast responses via real-time WebSocket connections.
+
+![Rico Screenshots](../screenshots/rico-mockup.png)
 
 ## Features
 
@@ -367,20 +369,30 @@ npm run dev
 
 ---
 
-## Roadmap
+## Note
 
-### Next Improvements
+This is a self-hosted tool that runs on your personal desktop. It does not include a built-in authentication system, so please manage security through network access control (e.g., Tailscale VPN).
 
-1. **Voice Input**: Easier text input via speech
+---
 
-> This is still a work in progress and needs improvement. Contributions are welcome!
+## Contributing
+
+Issues and Pull Requests are welcome.
+
+### Development Setup
+
+1. Fork & Clone this repository
+2. Follow the [Installation](#installation) steps to configure your environment
+3. Refer to the [Development](#development) section to run the local dev server
+
+### PR Guidelines
+
+- Write commit messages in English
+- Follow the existing code style
+- Include a description of your changes in the PR body when possible
 
 ---
 
 ## License
 
 MIT License - see [LICENSE](LICENSE)
-
-## Contributing
-
-Issues and Pull Requests are welcome.
