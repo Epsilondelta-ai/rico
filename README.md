@@ -2,26 +2,26 @@
 
 **Remote Claude Code Operator**
 
-[English](docs/README-en.md) | 한국어 | [简体中文](docs/README-zh.md) | [日本語](docs/README-ja.md) | [Español](docs/README-es.md) | [Português (BR)](docs/README-pt-br.md) | [Français](docs/README-fr.md) | [Русский](docs/README-ru.md) | [Deutsch](docs/README-de.md)
+English | [한국어](docs/README-ko.md) | [简体中文](docs/README-zh.md) | [日本語](docs/README-ja.md) | [Español](docs/README-es.md) | [Português (BR)](docs/README-pt-br.md) | [Français](docs/README-fr.md) | [Русский](docs/README-ru.md) | [Deutsch](docs/README-de.md)
 
-### Q. 이게 뭐임?
+### Q. What is this?
 
-**A. 누워서 Claude Code랑 작업하고 싶어서 만들었습니다.**
+**A. I made this because I wanted to work with Claude Code while lying down.**
 
-모바일에서 Claude Code를 사용할 수 있게 해주는 PWA 클라이언트예요. Go 브릿지 서버를 통해 Claude Code CLI와 통신하고, 실시간 WebSocket 연결로 빠른 응답을 제공합니다.
+It's a PWA client that lets you use Claude Code on mobile devices. It communicates with Claude Code CLI through a Go bridge server and provides fast responses via real-time WebSocket connections.
 
 ![Rico Screenshots](./screenshots/rico-mockup.png)
 
 ## Features
 
-- **Mobile-First PWA**: 홈 화면에 설치하여 네이티브 앱처럼 사용
-- **Real-time Chat**: WebSocket 기반 실시간 대화
-- **Push Notifications**: 새 메시지 도착 시 푸시 알림
-- **File Browser**: 서버 파일 시스템 탐색 및 파일 보기
-- **Session Management**: 대화 세션 저장 및 관리
-- **SOUL System**: 커스터마이징 가능한 AI 페르소나
-- **Skills**: 슬래시 커맨드로 확장 기능 사용
-- **i18n**: 다국어 지원 (한국어/영어)
+- **Mobile-First PWA**: Install on home screen and use like a native app
+- **Real-time Chat**: WebSocket-based real-time conversation
+- **Push Notifications**: Push alerts when new messages arrive
+- **File Browser**: Browse server file system and view files
+- **Session Management**: Save and manage conversation sessions
+- **SOUL System**: Customizable AI persona
+- **Skills**: Extended features via slash commands
+- **i18n**: Multi-language support (Korean/English)
 
 ## Tech Stack
 
@@ -36,80 +36,80 @@
 
 ## Requirements
 
-### 필수 요구사항
+### Prerequisites
 
-| 요구사항 | 버전 | 용도 |
-|---------|------|------|
-| Node.js | 18+ | 프론트엔드 빌드 |
-| Go | 1.21+ | 서버 빌드 |
-| Claude Code CLI | latest | AI 통신 |
-| HTTPS + Domain | - | PWA 필수 요건 (아래 참조) |
+| Requirement | Version | Purpose |
+|-------------|---------|---------|
+| Node.js | 18+ | Frontend build |
+| Go | 1.21+ | Server build |
+| Claude Code CLI | latest | AI communication |
+| HTTPS + Domain | - | PWA requirement (see below) |
 
-### HTTPS와 도메인이 필요한 이유
+### Why HTTPS and Domain are Required
 
-PWA의 핵심 기능들(Service Worker, Push Notifications, 홈 화면 설치)은 **보안상의 이유로 HTTPS에서만 동작**합니다. 또한 SSL 인증서 발급을 위해서는 **도메인**이 필요합니다.
+PWA core features (Service Worker, Push Notifications, Home Screen Installation) **only work over HTTPS** for security reasons. Additionally, a **domain** is required to obtain SSL certificates.
 
-도메인과 SSL 인증서를 얻는 방법은 여러 가지가 있지만, 이 프로젝트에서는 Tailscale을 사용했습니다. 다른 방법(Cloudflare Tunnel, ngrok, 자체 도메인 등)을 사용해도 됩니다.
+There are several ways to get a domain and SSL certificates, but this project uses Tailscale. You can also use other methods (Cloudflare Tunnel, ngrok, your own domain, etc.).
 
 ---
 
-## Tailscale 설정 (이 프로젝트에서 사용한 방법)
+## Tailscale Setup (Method Used in This Project)
 
-Tailscale은 VPN 서비스인데, 부가적으로 도메인과 SSL 인증서를 무료로 제공해줍니다. 개인 프로젝트에서 HTTPS 설정이 귀찮을 때 편하게 쓸 수 있어서 선택했습니다.
+Tailscale is a VPN service that also provides free domains and SSL certificates. It's convenient when you want easy HTTPS setup for personal projects.
 
-### 1. Tailscale 설치
+### 1. Install Tailscale
 
-**PC (서버가 실행될 컴퓨터):**
-- https://tailscale.com/download 에서 OS에 맞는 버전 설치
-- 설치 후 로그인 (Google, GitHub 등)
+**PC (computer where server will run):**
+- Install from https://tailscale.com/download for your OS
+- Login after installation (Google, GitHub, etc.)
 
-**모바일:**
-- App Store / Play Store에서 "Tailscale" 설치
-- **같은 계정**으로 로그인
+**Mobile:**
+- Install "Tailscale" from App Store / Play Store
+- Login with the **same account**
 
-### 2. 도메인 확인
+### 2. Check Domain
 
-Tailscale 설치 후 터미널에서:
+After installing Tailscale, run in terminal:
 
 ```bash
 tailscale status
 ```
 
-출력 예시:
+Example output:
 ```
 100.94.195.110  your-machine    your-email@...
 ```
 
-도메인 형식: `your-machine.tail1234.ts.net`
+Domain format: `your-machine.tail1234.ts.net`
 
-> Tailscale Admin Console(https://login.tailscale.com/admin)에서도 확인 가능
+> You can also check on Tailscale Admin Console (https://login.tailscale.com/admin)
 
-### 3. SSL 인증서 발급
+### 3. Get SSL Certificate
 
 ```bash
-# 인증서 발급 (무료)
+# Get certificate (free)
 tailscale cert your-machine.tail1234.ts.net
 ```
 
-발급된 파일:
-- `your-machine.tail1234.ts.net.crt` (인증서)
-- `your-machine.tail1234.ts.net.key` (개인키)
+Generated files:
+- `your-machine.tail1234.ts.net.crt` (certificate)
+- `your-machine.tail1234.ts.net.key` (private key)
 
-이 파일들을 `server/certs/` 폴더에 복사하세요.
+Copy these files to `server/certs/` folder.
 
 ---
 
-## Claude Code CLI 설치
+## Claude Code CLI Installation
 
 ```bash
-# npm으로 설치
+# Install via npm
 npm install -g @anthropic-ai/claude-code
 
-# 로그인
+# Login
 claude login
 ```
 
-> Claude Code CLI 로그인 후 사용 가능합니다. 별도의 API 키 설정은 필요 없습니다.
+> Available after logging into Claude Code CLI. No separate API key setup required.
 
 ---
 
@@ -122,15 +122,15 @@ git clone https://github.com/Epsilondelta-ai/rico.git
 cd rico
 ```
 
-### 2. VAPID 키 생성
+### 2. Generate VAPID Keys
 
-푸시 알림을 위한 VAPID 키를 먼저 생성합니다:
+First, generate VAPID keys for push notifications:
 
 ```bash
 npx web-push generate-vapid-keys
 ```
 
-출력 예시:
+Example output:
 ```
 =======================================
 
@@ -143,9 +143,9 @@ abc1...your_private_key...
 =======================================
 ```
 
-이 키들을 메모해두세요. 아래 설정에서 사용합니다.
+Save these keys. They will be used in the setup below.
 
-### 3. Server 설정
+### 3. Server Setup
 
 ```bash
 cd server
@@ -153,21 +153,21 @@ go mod download
 cp .env.example .env
 ```
 
-`server/.env` 수정:
+Edit `server/.env`:
 ```env
-# VAPID 키 (위에서 생성한 키)
+# VAPID keys (generated above)
 VAPID_PUBLIC_KEY=BNlx...your_public_key...
 VAPID_PRIVATE_KEY=abc1...your_private_key...
 
-# 서버 포트
+# Server port
 SERVER_PORT=8080
 
-# SSL 인증서 (Tailscale에서 발급받은 파일 경로)
+# SSL certificate (paths to files from Tailscale)
 SSL_CERT_FILE=./certs/your-machine.tail1234.ts.net.crt
 SSL_KEY_FILE=./certs/your-machine.tail1234.ts.net.key
 ```
 
-### 4. Frontend 설정
+### 4. Frontend Setup
 
 ```bash
 cd ../web
@@ -175,18 +175,18 @@ npm install
 cp .env.example .env
 ```
 
-`web/.env` 수정:
+Edit `web/.env`:
 ```env
-# API 서버 주소 (Tailscale 도메인 사용)
+# API server address (use Tailscale domain)
 VITE_API_BASE=https://your-machine.tail1234.ts.net:8080
 
-# VAPID 공개키 (server/.env와 동일한 공개키)
+# VAPID public key (same as server/.env)
 VITE_VAPID_PUBLIC_KEY=BNlx...your_public_key...
 ```
 
-### 5. 빌드 및 실행
+### 5. Build and Run
 
-프로젝트 루트(`rico/`)에서 실행합니다.
+Run from project root (`rico/`).
 
 **Windows:**
 ```bash
@@ -195,13 +195,13 @@ scripts\run-windows.bat
 
 **Linux/macOS:**
 ```bash
-chmod +x scripts/run-linux.sh   # 최초 1회
+chmod +x scripts/run-linux.sh   # first time only
 ./scripts/run-linux.sh
 ```
 
-스크립트가 의존성 설치 → Frontend 빌드 → Server 빌드 → 서버 실행을 순서대로 처리합니다.
+The script handles: dependency installation → Frontend build → Server build → server startup in order.
 
-성공 시 로그:
+Success log:
 ```
 Rico 설정 로드 완료:
   - RICO_BASE_PATH: /path/to/rico
@@ -209,20 +209,20 @@ Rico 설정 로드 완료:
 Rico 브릿지 서버 시작 (HTTPS): :8080
 ```
 
-### 모바일에서 접속
+### Access from Mobile
 
-1. 모바일에서 Tailscale 앱 실행 (연결 확인)
-2. 브라우저에서 `https://your-machine.tail1234.ts.net:8080` 접속
+1. Run Tailscale app on mobile (verify connection)
+2. Access `https://your-machine.tail1234.ts.net:8080` in browser
 
 **iOS (Safari):**
-3. 하단 공유 버튼 → **"홈 화면에 추가"** 선택
-4. PWA로 설치 완료
+3. Tap share button → Select **"Add to Home Screen"**
+4. PWA installation complete
 
 **Android (Chrome):**
-3. 메뉴(⋮) → **"홈 화면에 추가"** 또는 **"앱 설치"** 선택
-4. PWA로 설치 완료
+3. Menu (⋮) → Select **"Add to Home Screen"** or **"Install App"**
+4. PWA installation complete
 
-> 이 프로젝트는 iOS Safari에서 테스트되었습니다. Android에서도 동작할 것으로 예상되지만 테스트되지 않았습니다.
+> This project was tested on iOS Safari. It's expected to work on Android but hasn't been tested.
 
 ---
 
@@ -231,8 +231,8 @@ Rico 브릿지 서버 시작 (HTTPS): :8080
 ```
 rico/
 ├── scripts/
-│   ├── run-windows.bat     # Windows용 빌드 & 실행
-│   └── run-linux.sh        # Linux/macOS용 빌드 & 실행
+│   ├── run-windows.bat     # Windows build & run
+│   └── run-linux.sh        # Linux/macOS build & run
 ├── web/                    # Svelte PWA Frontend
 │   ├── src/
 │   │   ├── App.svelte
@@ -243,7 +243,7 @@ rico/
 │   └── package.json
 ├── server/                 # Go Bridge Server
 │   ├── main.go
-│   ├── certs/              # SSL 인증서 폴더
+│   ├── certs/              # SSL certificate folder
 │   └── .env.example
 ├── context/                # Context System
 │   ├── personas/           # Persona settings
@@ -260,24 +260,24 @@ rico/
 
 ## Configuration
 
-### 환경변수 요약
+### Environment Variables Summary
 
 #### Server (`server/.env`)
 
-| 변수 | 필수 | 설명 |
-|------|------|------|
-| `VAPID_PUBLIC_KEY` | O | 푸시 알림 공개키 |
-| `VAPID_PRIVATE_KEY` | O | 푸시 알림 비밀키 |
-| `SERVER_PORT` | - | 서버 포트 (기본: 8080) |
-| `SSL_CERT_FILE` | O | SSL 인증서 파일 경로 |
-| `SSL_KEY_FILE` | O | SSL 키 파일 경로 |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `VAPID_PUBLIC_KEY` | Yes | Push notification public key |
+| `VAPID_PRIVATE_KEY` | Yes | Push notification private key |
+| `SERVER_PORT` | No | Server port (default: 8080) |
+| `SSL_CERT_FILE` | Yes | SSL certificate file path |
+| `SSL_KEY_FILE` | Yes | SSL key file path |
 
 #### Web (`web/.env`)
 
-| 변수 | 필수 | 설명 |
-|------|------|------|
-| `VITE_VAPID_PUBLIC_KEY` | O | 푸시 알림 공개키 (서버와 동일) |
-| `VITE_API_BASE` | O | API 서버 주소 (https://...) |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `VITE_VAPID_PUBLIC_KEY` | Yes | Push notification public key (same as server) |
+| `VITE_API_BASE` | Yes | API server address (https://...) |
 
 ---
 
@@ -285,7 +285,7 @@ rico/
 
 ### SOUL (AI Persona)
 
-`context/personas/default/SOUL.md`를 수정하여 AI의 성격, 말투, 행동 방식을 커스터마이징할 수 있습니다.
+You can customize the AI's personality, speech style, and behavior by editing `context/personas/default/SOUL.md`.
 
 ```markdown
 # SOUL
@@ -293,53 +293,53 @@ rico/
 You are a Claude Code agent. Respond naturally.
 ```
 
-기본 설정은 최소한의 지시만 포함되어 있어, Claude가 자연스럽게 응답합니다. 필요에 따라 상세한 페르소나를 추가할 수 있습니다.
+The default setting includes minimal instructions, allowing Claude to respond naturally. You can add detailed personas as needed.
 
 ### Language (i18n)
 
-앱 내 설정 메뉴에서 언어를 변경할 수 있습니다. 현재 한국어와 영어를 지원합니다.
+You can change the language in the app's settings menu. Currently supports Korean and English.
 
-**새 언어 추가 방법:**
+**Adding a new language:**
 
-1. `web/src/locales/` 폴더에 `{언어코드}.json` 생성 (예: `ja.json`)
-2. `ko.json` 구조를 복사하여 번역
-3. `web/src/lib/i18n.ts` 수정:
+1. Create `{language_code}.json` in `web/src/locales/` folder (e.g., `ja.json`)
+2. Copy `ko.json` structure and translate
+3. Edit `web/src/lib/i18n.ts`:
    ```typescript
    import ja from '../locales/ja.json';
    addMessages('ja', ja);
    ```
-4. 언어 토글 UI 업데이트 (SessionListScreen.svelte)
+4. Update language toggle UI (SessionListScreen.svelte)
 
 ---
 
 ## Troubleshooting
 
-### 푸시 알림이 안 와요
+### Push notifications not working
 
-- VAPID 키가 올바르게 설정되었는지 확인
-- `server/.env`와 `web/.env`의 **공개키가 동일**한지 확인
-- 브라우저에서 알림 권한이 허용되었는지 확인
+- Check if VAPID keys are correctly configured
+- Verify that **public keys are identical** in `server/.env` and `web/.env`
+- Check if notification permissions are allowed in browser
 
-### HTTPS 연결이 안 돼요
+### HTTPS connection not working
 
-- Tailscale이 PC와 모바일 모두에서 연결되어 있는지 확인
-- SSL 인증서 파일 경로가 올바른지 확인
-- 인증서가 만료되지 않았는지 확인 (3개월마다 갱신 필요)
+- Verify Tailscale is connected on both PC and mobile
+- Check if SSL certificate file paths are correct
+- Check if certificate has expired (needs renewal every 3 months)
   ```bash
-  tailscale cert your-machine.tail1234.ts.net  # 재발급
+  tailscale cert your-machine.tail1234.ts.net  # re-issue
   ```
 
-### "사이트에 연결할 수 없음" 오류
+### "Cannot connect to site" error
 
-- 서버가 실행 중인지 확인
-- 모바일에서 Tailscale 앱이 연결되어 있는지 확인
-- 도메인 주소가 정확한지 확인
+- Check if server is running
+- Verify Tailscale app is connected on mobile
+- Check if domain address is correct
 
-### Claude Code 응답이 없어요
+### No response from Claude Code
 
-- `claude login`으로 로그인되어 있는지 확인
-- 서버 로그에서 에러 확인: `server/logs/`
-- Claude Code CLI가 정상 동작하는지 테스트:
+- Verify logged in with `claude login`
+- Check server logs for errors: `server/logs/`
+- Test if Claude Code CLI works properly:
   ```bash
   claude "Hello"
   ```
@@ -348,14 +348,14 @@ You are a Claude Code agent. Respond naturally.
 
 ## Development
 
-### 로컬 개발 (HTTP)
+### Local Development (HTTP)
 
-SSL 인증서 없이 로컬에서 테스트할 때:
+When testing locally without SSL certificates:
 
 **Terminal 1 - Server:**
 ```bash
 cd server
-# .env에서 SSL_CERT_FILE, SSL_KEY_FILE 주석 처리
+# Comment out SSL_CERT_FILE, SSL_KEY_FILE in .env
 go run main.go
 ```
 
@@ -365,31 +365,31 @@ cd web
 npm run dev
 ```
 
-> 주의: HTTP 모드에서는 푸시 알림, PWA 설치 등이 동작하지 않습니다.
+> Note: Push notifications, PWA installation, etc. won't work in HTTP mode.
 
 ---
 
 ## Note
 
-이 프로젝트는 개인 데스크탑에서 실행하는 셀프 호스팅 도구입니다. 별도의 인증 시스템은 포함되어 있지 않으므로, 네트워크 접근 제어(Tailscale VPN 등)를 통해 보안을 관리해주세요.
+This is a self-hosted tool that runs on your personal desktop. It does not include a built-in authentication system, so please manage security through network access control (e.g., Tailscale VPN).
 
 ---
 
 ## Contributing
 
-Issues와 Pull Requests를 환영합니다.
+Issues and Pull Requests are welcome.
 
-### 개발 환경 세팅
+### Development Setup
 
-1. 이 저장소를 Fork & Clone
-2. [Installation](#installation) 단계를 따라 환경 설정
-3. [Development](#development) 섹션을 참고하여 로컬 개발 서버 실행
+1. Fork & Clone this repository
+2. Follow the [Installation](#installation) steps to configure your environment
+3. Refer to the [Development](#development) section to run the local dev server
 
-### PR 가이드라인
+### PR Guidelines
 
-- 커밋 메시지는 영어로 작성
-- 기존 코드 스타일을 따라주세요
-- 가능하면 변경 사항에 대한 설명을 PR 본문에 포함
+- Write commit messages in English
+- Follow the existing code style
+- Include a description of your changes in the PR body when possible
 
 ---
 

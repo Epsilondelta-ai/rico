@@ -2,7 +2,7 @@
 
 **Remote Claude Code Operator**
 
-[English](README-en.md) | [한국어](../README.md) | [简体中文](README-zh.md) | [日本語](README-ja.md) | [Español](README-es.md) | [Português (BR)](README-pt-br.md) | Français | [Русский](README-ru.md) | [Deutsch](README-de.md)
+[English](../README.md) | [한국어](README-ko.md) | [简体中文](README-zh.md) | [日本語](README-ja.md) | [Español](README-es.md) | [Português (BR)](README-pt-br.md) | Français | [Русский](README-ru.md) | [Deutsch](README-de.md)
 
 ### Q. C'est quoi ?
 
