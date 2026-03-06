@@ -512,28 +512,35 @@ func readContextFile(filename string) string {
 	return string(content)
 }
 
-// 메시지에 컨텍스트 주입
+// 메시지에 컨텍스트 Read 지시 주입 (키워드 트리거)
+// 파일 내용을 직접 주입하지 않고, Read 지시만 추가하여 캐시 중복 방지
 func injectContext(message string) string {
 	files := detectKeywordTriggers(message)
 	if len(files) == 0 {
 		return message
 	}
 
-	var contextParts []string
-	for _, file := range files {
-		content := readContextFile(file)
-		if content != "" {
-			contextParts = append(contextParts, fmt.Sprintf("---\n[컨텍스트: %s]\n%s", file, content))
-		}
-	}
-
-	if len(contextParts) == 0 {
-		return message
-	}
-
 	log.Printf("키워드 트리거 발동: %v", files)
-	// 컨텍스트를 메시지 앞에 붙임 (규칙을 먼저 읽게)
-	return strings.Join(contextParts, "\n\n") + "\n\n---\n[유저 메시지]\n" + message
+
+	// Read 지시 생성 (파일 내용 대신 경로만 전달)
+	var readInstructions []string
+	for _, file := range files {
+		filePath := filepath.Join(contextBasePath, file)
+		readInstructions = append(readInstructions, fmt.Sprintf("- %s", filePath))
+	}
+
+	// 컨텍스트 Read 지시를 메시지 앞에 붙임
+	contextHeader := fmt.Sprintf(`-
+---
+[컨텍스트 참조 지시]
+다음 파일들을 Read 도구로 읽고 규칙을 따르세요:
+%s
+
+---
+[유저 메시지]
+`, strings.Join(readInstructions, "\n"))
+
+	return contextHeader + message
 }
 
 // SOUL 컨텐츠 정리 (앞뒤 불필요한 텍스트 제거)
