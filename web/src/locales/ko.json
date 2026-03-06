@@ -21,7 +21,14 @@
     "theme_dark": "다크 모드",
     "soul": "SOUL 설정",
     "push_on": "알림 켜짐",
-    "push_off": "알림 켜기"
+    "push_off": "알림 켜기",
+    "copy_all_desc": "모든 메시지를 클립보드에 복사",
+    "server_logs": "서버 로그",
+    "server_logs_desc": "서버 실행 로그 확인",
+    "restart_server": "서버 재시작",
+    "restart_server_desc": "Claude Code 서버 재시작",
+    "restarting": "재시작 중...",
+    "restart_confirm": "서버를 재시작하시겠습니까?\n잠시 연결이 끊어집니다."
   },
   "user": {
     "online": "온라인",
@@ -160,6 +167,19 @@
   "image": {
     "attached": "첨부 이미지",
     "enlarged": "이미지 확대"
+  },
+  "logs": {
+    "title": "서버 로그",
+    "all_sources": "모든 소스",
+    "source_go": "Go 서버",
+    "source_vite": "Vite",
+    "source_stt": "STT",
+    "source_system": "시스템",
+    "all_levels": "모든 레벨",
+    "clear": "지우기",
+    "empty": "로그가 없습니다",
+    "auto_scroll": "자동 스크롤",
+    "entries": "개"
   },
   "error": {
     "soul_load": "활성 SOUL 로드 실패:",

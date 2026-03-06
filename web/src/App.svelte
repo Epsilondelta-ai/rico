@@ -6,10 +6,11 @@
   import SoulScreen from './lib/SoulScreen.svelte';
   import SoulListScreen from './lib/SoulListScreen.svelte';
   import SoulEditScreen from './lib/SoulEditScreen.svelte';
+  import LogViewerScreen from './lib/LogViewerScreen.svelte';
   import { createWebSocketClient } from './lib/websocket';
   import { API_BASE, WS_URL } from './lib/config';
 
-  type Screen = 'login' | 'sessions' | 'chat' | 'soul' | 'soulList' | 'soulEdit';
+  type Screen = 'login' | 'sessions' | 'chat' | 'soul' | 'soulList' | 'soulEdit' | 'logs';
 
   interface ChatMessage {
     id: string;
@@ -74,6 +75,7 @@
   let lastSuggestions: string[] = [];
   let lastToolsUsed: string[] = [];
   let lastToolDetails: any[] = [];
+  let lastTokenUsage: any = null;
   let isConnected = false;
   let claudeState = 'idle';
   let claudeTask = ''; // 현재 수행 중인 작업 (도구 사용 중 등)
@@ -254,6 +256,7 @@
             lastSuggestions = data.payload.suggestions || [];
             lastToolsUsed = data.payload.toolsUsed || [];
             lastToolDetails = data.payload.toolDetails || [];
+            lastTokenUsage = data.payload.tokenUsage || null;
             setTimeout(() => { lastResponse = null; lastSuggestions = []; lastToolsUsed = []; lastToolDetails = []; }, 100);
 
             // 응답 받으면 읽음 처리 (현재 세션의 읽음 카운트 +1)
@@ -411,6 +414,14 @@
     await loadPersonaConfig();
     currentScreen = 'soulList';
   }
+
+  function handleLogs() {
+    currentScreen = 'logs';
+  }
+
+  function handleBackFromLogs() {
+    currentScreen = 'chat';
+  }
 </script>
 
 {#if currentScreen === 'login'}
@@ -442,12 +453,15 @@
   />
 {:else if currentScreen === 'soul'}
   <SoulScreen onBack={handleBackFromSoul} />
+{:else if currentScreen === 'logs'}
+  <LogViewerScreen onBack={handleBackFromLogs} />
 {:else}
   <ChatScreen
     {lastResponse}
     {lastSuggestions}
     {lastToolsUsed}
     {lastToolDetails}
+    {lastTokenUsage}
     {isConnected}
     {claudeState}
     {claudeTask}
@@ -457,6 +471,7 @@
     onSendMessage={handleSendMessage}
     onCancel={handleCancel}
     onBack={handleBackToSessions}
+    onLogs={handleLogs}
     {personaConfig}
   />
 {/if}

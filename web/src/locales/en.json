@@ -21,7 +21,14 @@
     "theme_dark": "Dark Mode",
     "soul": "SOUL Settings",
     "push_on": "Notifications On",
-    "push_off": "Enable Notifications"
+    "push_off": "Enable Notifications",
+    "copy_all_desc": "Copy all messages to clipboard",
+    "server_logs": "Server Logs",
+    "server_logs_desc": "View server logs",
+    "restart_server": "Restart Server",
+    "restart_server_desc": "Restart Claude Code server",
+    "restarting": "Restarting...",
+    "restart_confirm": "Restart the server?\nConnection will be temporarily lost."
   },
   "user": {
     "online": "Online",
@@ -160,6 +167,19 @@
   "image": {
     "attached": "Attached image",
     "enlarged": "Enlarged image"
+  },
+  "logs": {
+    "title": "Server Logs",
+    "all_sources": "All Sources",
+    "source_go": "Go Server",
+    "source_vite": "Vite",
+    "source_stt": "STT",
+    "source_system": "System",
+    "all_levels": "All Levels",
+    "clear": "Clear",
+    "empty": "No logs",
+    "auto_scroll": "Auto Scroll",
+    "entries": "entries"
   },
   "error": {
     "soul_load": "Failed to load active SOUL:",

@@ -18,6 +18,15 @@
     suggestions?: string[]; // 제안 (StructuredOutput)
   }
 
+  // 토큰 사용량 정보
+  interface TokenUsage {
+    inputTokens: number;
+    outputTokens: number;
+    cacheCreationInputTokens?: number;
+    cacheReadInputTokens?: number;
+    totalCostUsd?: number;
+  }
+
   interface ChatMessage {
     id: string;
     text: string;
@@ -28,12 +37,14 @@
     isSystem?: boolean; // 시스템 메시지 (페르소나 충전 등) - 세션 복원 시 필터링
     toolsUsed?: string[]; // 사용된 도구 목록 (예: "Read: main.go") - 호환용
     toolDetails?: ToolDetail[]; // 도구 상세 정보
+    outputTokens?: number; // 출력 토큰 수
   }
 
   export let lastResponse: string | null = null;
   export let lastSuggestions: string[] = [];
   export let lastToolsUsed: string[] = [];
   export let lastToolDetails: ToolDetail[] = [];
+  export let lastTokenUsage: TokenUsage | null = null;
   export let isConnected: boolean = false;
   export let claudeState: string = 'idle';
   export let claudeTask: string = ''; // 현재 수행 중인 작업 상태
@@ -43,6 +54,7 @@
   export let onSendMessage: (text: string) => void = () => {};
   export let onCancel: () => void = () => {};
   export let onBack: () => void = () => {};
+  export let onLogs: () => void = () => {};
 
   // Persona 설정
   interface PersonaConfig {
@@ -188,6 +200,10 @@
   // 도구 인스펙터 (펼침/접힘 상태 및 파일 내용 캐시)
   let expandedToolKey: string | null = null; // "messageId:toolIndex" 형식
   let toolContentCache: Record<string, { content: string; loading: boolean; error?: string }> = {};
+
+  // 설정 메뉴 바텀시트
+  let showSettingsMenu = false;
+  let isRestarting = false;
 
   // 최근 이동 경로 (localStorage에서 로드)
   const RECENT_PATHS_KEY = 'rico_recent_paths';
@@ -725,6 +741,8 @@
     // 도구 정보 저장 (현재 값을 캡처)
     const toolsUsedToSave = lastToolsUsed.length > 0 ? [...lastToolsUsed] : undefined;
     const toolDetailsToSave = lastToolDetails.length > 0 ? [...lastToolDetails] : undefined;
+    // 출력 토큰 저장
+    const outputTokensToSave = lastTokenUsage?.outputTokens;
 
       const newMessage: ChatMessage = {
         id: Date.now().toString(),
@@ -734,6 +752,7 @@
         imageUrls: imageUrls.length > 0 ? imageUrls : undefined,
         toolsUsed: toolsUsedToSave,
         toolDetails: toolDetailsToSave,
+        outputTokens: outputTokensToSave,
       };
       localMessages = [...localMessages, newMessage];
       onMessagesChange(localMessages);
@@ -744,9 +763,18 @@
 
   afterUpdate(() => {
     if (messageListEl) {
-      // 메시지가 추가됐을 때만 스크롤 (구분선이 없을 때만 자동 스크롤)
+      // 메시지가 추가됐을 때 자동 스크롤
       if (localMessages.length > prevMessageCount) {
-        if (newMessageDividerIndex === null) {
+        // 새 메시지가 봇 응답이면 항상 스크롤 (구분선 있어도)
+        const lastMsg = localMessages[localMessages.length - 1];
+        if (lastMsg && !lastMsg.isUser) {
+          messageListEl.scrollTop = messageListEl.scrollHeight;
+          // 스크롤 후 구분선 제거
+          if (newMessageDividerIndex !== null) {
+            newMessageDividerIndex = null;
+          }
+        } else if (newMessageDividerIndex === null) {
+          // 유저 메시지는 기존 로직 (구분선 없을 때만 스크롤)
           messageListEl.scrollTop = messageListEl.scrollHeight;
         }
         prevMessageCount = localMessages.length;
@@ -893,6 +921,29 @@
     }
   }
 
+  // 서버 재시작
+  async function restartServer() {
+    if (isRestarting) return;
+
+    if (!confirm($_('settings.restart_confirm'))) {
+      return;
+    }
+
+    isRestarting = true;
+    try {
+      const res = await fetch(`${API_BASE}/api/restart`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        console.log('[Restart] Request successful');
+      }
+    } catch (err) {
+      console.error('[Restart] Request failed:', err);
+    }
+    // 재시작 중 상태는 서버가 다시 올라올 때까지 유지
+    setTimeout(() => { isRestarting = false; }, 10000);
+  }
+
   async function copyMessage(text: string, id: string) {
     // 현재 스크롤 위치 저장
     const scrollTop = messageListEl?.scrollTop || 0;
@@ -949,12 +1000,13 @@
     </div>
     <button
       class="text-[var(--text-dimmed)] hover:text-[var(--text-muted)] p-2 rounded-lg hover:bg-[var(--border-primary)] transition-all"
-      on:click={copyAllMessages}
-      title={$_('chat.copy_all')}
-      aria-label={$_('chat.copy_all')}
+      on:click|stopPropagation={() => showSettingsMenu = true}
+      title={$_('settings.title')}
+      aria-label={$_('settings.title')}
     >
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
       </svg>
     </button>
   </div>
@@ -1003,6 +1055,11 @@
             <span class="text-[var(--text-faint)] text-[11px]">
               {formatTime(message.timestamp)}
             </span>
+            {#if !message.isUser && message.outputTokens}
+              <span class="text-[var(--text-faint)] text-[10px] font-mono">
+                · {message.outputTokens.toLocaleString()}t
+              </span>
+            {/if}
           </div>
 
           {#if message.isUser}
@@ -1684,6 +1741,88 @@
             on:touchstart={() => pressingActionButton = 'cancel'}
             on:touchend={() => pressingActionButton = null}
             on:touchcancel={() => pressingActionButton = null}
+          >
+            {$_('action.cancel')}
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- 설정 메뉴 바텀시트 -->
+  {#if showSettingsMenu}
+    <div class="fixed inset-0 bg-black/70 z-50 flex items-end justify-center backdrop-blur-sm" on:click={() => showSettingsMenu = false}>
+      <div
+        class="bg-[var(--bg-primary)] w-full max-w-md rounded-t-3xl overflow-hidden animate-slide-up shadow-2xl"
+        on:click|stopPropagation
+      >
+        <!-- 핸들 바 -->
+        <div class="flex justify-center pt-3 pb-1">
+          <div class="w-10 h-1 bg-[#2d3a3a] rounded-full"></div>
+        </div>
+
+        <!-- 타이틀 -->
+        <div class="px-5 pb-3 border-b border-[var(--border-primary)]">
+          <h3 class="text-[var(--text-primary)] font-semibold">{$_('settings.title')}</h3>
+        </div>
+
+        <!-- 메뉴 항목들 -->
+        <div class="py-2">
+          <!-- 전체 대화 복사 -->
+          <button
+            class="w-full flex items-center gap-4 px-5 py-4 text-left transition-all duration-150 hover:bg-[var(--bg-hover)]"
+            on:click={() => { copyAllMessages(); showSettingsMenu = false; }}
+          >
+            <div class="w-10 h-10 rounded-xl bg-[var(--accent-primary)]/10 flex items-center justify-center">
+              <svg class="w-5 h-5 text-[var(--accent-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-[var(--text-primary)] text-base font-medium">{$_('chat.copy_all')}</span>
+              <span class="text-[var(--text-dimmed)] text-xs">{$_('settings.copy_all_desc')}</span>
+            </div>
+          </button>
+
+          <!-- 서버 로그 -->
+          <button
+            class="w-full flex items-center gap-4 px-5 py-4 text-left transition-all duration-150 hover:bg-[var(--bg-hover)]"
+            on:click={() => { onLogs(); showSettingsMenu = false; }}
+          >
+            <div class="w-10 h-10 rounded-xl bg-[var(--purple-primary)]/10 flex items-center justify-center">
+              <svg class="w-5 h-5 text-[var(--purple-primary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-[var(--text-primary)] text-base font-medium">{$_('settings.server_logs')}</span>
+              <span class="text-[var(--text-dimmed)] text-xs">{$_('settings.server_logs_desc')}</span>
+            </div>
+          </button>
+
+          <!-- 서버 재시작 -->
+          <button
+            class="w-full flex items-center gap-4 px-5 py-4 text-left transition-all duration-150 hover:bg-[var(--bg-hover)]"
+            on:click={() => { restartServer(); showSettingsMenu = false; }}
+            disabled={isRestarting}
+          >
+            <div class="w-10 h-10 rounded-xl bg-[var(--orange-primary)]/10 flex items-center justify-center">
+              <svg class="w-5 h-5 text-[var(--orange-primary)] {isRestarting ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+            </div>
+            <div class="flex flex-col">
+              <span class="text-[var(--text-primary)] text-base font-medium">{isRestarting ? $_('settings.restarting') : $_('settings.restart_server')}</span>
+              <span class="text-[var(--text-dimmed)] text-xs">{$_('settings.restart_server_desc')}</span>
+            </div>
+          </button>
+        </div>
+
+        <!-- 취소 버튼 -->
+        <div class="px-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <button
+            class="w-full py-3.5 bg-[var(--bg-tertiary)] hover:bg-[var(--bg-hover)] rounded-xl text-[var(--text-tertiary)] font-medium transition-all"
+            on:click={() => showSettingsMenu = false}
           >
             {$_('action.cancel')}
           </button>

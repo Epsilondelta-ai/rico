@@ -60,7 +60,7 @@ func init() {
 	}
 
 	BASE_PATH = getEnv("SERVER_BASE_PATH", filepath.Join(RICO_BASE_PATH, "server"))
-	SERVER_PORT = getEnv("SERVER_PORT", "8080")
+	SERVER_PORT = getEnv("SERVER_PORT", "8081")
 	SSL_CERT_FILE = getEnv("SSL_CERT_FILE", "")
 	SSL_KEY_FILE = getEnv("SSL_KEY_FILE", "")
 
@@ -175,6 +175,111 @@ func getCleanEnvForClaude() []string {
 var pushSubscriptions = make(map[string]*webpush.Subscription)
 var pushMu sync.RWMutex
 var pushSubscriptionsFile = "push_subscriptions.json"
+
+// ============ 로그 스트리밍 ============
+
+type LogEntry struct {
+	Timestamp int64  `json:"timestamp"`
+	Level     string `json:"level"`   // "info", "error", "warn"
+	Message   string `json:"message"`
+	Source    string `json:"source"`  // "go", "vite", "system"
+}
+
+type LogBuffer struct {
+	entries     []LogEntry
+	maxSize     int
+	mu          sync.RWMutex
+	subscribers map[chan LogEntry]bool
+	subMu       sync.RWMutex
+}
+
+var serverLogBuffer = &LogBuffer{
+	entries:     make([]LogEntry, 0, 500),
+	maxSize:     500,
+	subscribers: make(map[chan LogEntry]bool),
+}
+
+// 로그 추가 및 구독자에게 브로드캐스트
+func (lb *LogBuffer) Add(level, message, source string) {
+	entry := LogEntry{
+		Timestamp: time.Now().UnixMilli(),
+		Level:     level,
+		Message:   message,
+		Source:    source,
+	}
+
+	lb.mu.Lock()
+	if len(lb.entries) >= lb.maxSize {
+		lb.entries = lb.entries[1:]
+	}
+	lb.entries = append(lb.entries, entry)
+	lb.mu.Unlock()
+
+	// 구독자들에게 브로드캐스트 (비동기)
+	lb.subMu.RLock()
+	for ch := range lb.subscribers {
+		select {
+		case ch <- entry:
+		default:
+			// 채널이 가득 차면 스킵
+		}
+	}
+	lb.subMu.RUnlock()
+}
+
+// 최근 로그 조회
+func (lb *LogBuffer) GetRecent(count int) []LogEntry {
+	lb.mu.RLock()
+	defer lb.mu.RUnlock()
+
+	if count <= 0 || count > len(lb.entries) {
+		count = len(lb.entries)
+	}
+	start := len(lb.entries) - count
+	result := make([]LogEntry, count)
+	copy(result, lb.entries[start:])
+	return result
+}
+
+// 구독 시작
+func (lb *LogBuffer) Subscribe() chan LogEntry {
+	ch := make(chan LogEntry, 50)
+	lb.subMu.Lock()
+	lb.subscribers[ch] = true
+	lb.subMu.Unlock()
+	return ch
+}
+
+// 구독 해제
+func (lb *LogBuffer) Unsubscribe(ch chan LogEntry) {
+	lb.subMu.Lock()
+	delete(lb.subscribers, ch)
+	lb.subMu.Unlock()
+	close(ch)
+}
+
+// 커스텀 로그 Writer (log.Printf를 로그 버퍼로 복제)
+type LogWriter struct {
+	source string
+}
+
+func (w *LogWriter) Write(p []byte) (n int, err error) {
+	message := strings.TrimSpace(string(p))
+	if message == "" {
+		return len(p), nil
+	}
+
+	// 로그 레벨 감지
+	level := "info"
+	if strings.Contains(message, "Error") || strings.Contains(message, "에러") || strings.Contains(message, "실패") {
+		level = "error"
+	} else if strings.Contains(message, "Warning") || strings.Contains(message, "경고") {
+		level = "warn"
+	}
+
+	serverLogBuffer.Add(level, message, w.source)
+	return len(p), nil
+}
 
 // ============ 설정 (Settings) ============
 
@@ -479,12 +584,22 @@ type StatusPayload struct {
 	Project string `json:"project,omitempty"`
 }
 
+// 토큰 사용량 정보
+type TokenUsage struct {
+	InputTokens              int     `json:"inputTokens"`
+	OutputTokens             int     `json:"outputTokens"`
+	CacheCreationInputTokens int     `json:"cacheCreationInputTokens,omitempty"`
+	CacheReadInputTokens     int     `json:"cacheReadInputTokens,omitempty"`
+	TotalCostUSD             float64 `json:"totalCostUsd,omitempty"`
+}
+
 type ResponsePayload struct {
 	Text        string       `json:"text"`
 	IsComplete  bool         `json:"isComplete"`
 	Suggestions []string     `json:"suggestions,omitempty"`
 	ToolsUsed   []string     `json:"toolsUsed,omitempty"`   // 사용된 도구 목록 (실시간)
 	ToolDetails []ToolDetail `json:"toolDetails,omitempty"` // 도구 상세 정보
+	TokenUsage  *TokenUsage  `json:"tokenUsage,omitempty"`  // 토큰 사용량
 }
 
 type ErrorPayload struct {
@@ -637,10 +752,17 @@ func extractToolDetail(toolName string, input interface{}) ToolDetail {
 
 // Claude CLI JSON 응답 구조체
 type ClaudeResponse struct {
-	Type             string `json:"type"`
-	Result           string `json:"result"`
-	SessionID        string `json:"session_id"`
-	IsError          bool   `json:"is_error"`
+	Type             string  `json:"type"`
+	Result           string  `json:"result"`
+	SessionID        string  `json:"session_id"`
+	IsError          bool    `json:"is_error"`
+	TotalCostUSD     float64 `json:"total_cost_usd,omitempty"`
+	Usage            *struct {
+		InputTokens              int `json:"input_tokens"`
+		OutputTokens             int `json:"output_tokens"`
+		CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
+		CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
+	} `json:"usage,omitempty"`
 	StructuredOutput *struct {
 		Response    string   `json:"response"`
 		Suggestions []string `json:"suggestions,omitempty"`
@@ -1202,7 +1324,7 @@ type ClaudeRunner struct {
 	isRunning            bool
 	mu                   sync.Mutex
 	queue                []QueueItem
-	onOutput             func(text string, isComplete bool, suggestions []string, toolsUsed []string, toolDetails []ToolDetail)
+	onOutput             func(text string, isComplete bool, suggestions []string, toolsUsed []string, toolDetails []ToolDetail, tokenUsage *TokenUsage)
 	onStatus             func(state, task string)
 	onError              func(code, message string)
 	onQueue              func(position int)                          // 큐 위치 알림
@@ -1448,7 +1570,7 @@ func (cr *ClaudeRunner) execute(prompt string, ricoSessionID string) {
 			log.Printf("JSON 파싱 실패, 원본 텍스트 사용: %v", err)
 			// JSON 파싱 실패시 원본 텍스트 그대로 사용
 			if cr.onOutput != nil && len(responseText) > 0 {
-				cr.onOutput(responseText, true, nil, toolsUsed, toolDetails)
+				cr.onOutput(responseText, true, nil, toolsUsed, toolDetails, nil)
 			}
 			// JSON 파싱 실패해도 세션에 저장
 			if cr.sessionStore != nil && ricoSessionID != "" && responseText != "" {
@@ -1550,14 +1672,30 @@ func (cr *ClaudeRunner) execute(prompt string, ricoSessionID string) {
 				}
 			}
 
+			// 토큰 사용량 정보 추출
+			var tokenUsage *TokenUsage
+			if claudeResp.Usage != nil {
+				tokenUsage = &TokenUsage{
+					InputTokens:              claudeResp.Usage.InputTokens,
+					OutputTokens:             claudeResp.Usage.OutputTokens,
+					CacheCreationInputTokens: claudeResp.Usage.CacheCreationInputTokens,
+					CacheReadInputTokens:     claudeResp.Usage.CacheReadInputTokens,
+					TotalCostUSD:             claudeResp.TotalCostUSD,
+				}
+				log.Printf("📊 [토큰] 입력: %d, 출력: %d, 캐시생성: %d, 캐시읽기: %d, 비용: $%.4f",
+					tokenUsage.InputTokens, tokenUsage.OutputTokens,
+					tokenUsage.CacheCreationInputTokens, tokenUsage.CacheReadInputTokens,
+					tokenUsage.TotalCostUSD)
+			}
+
 			// 응답 텍스트 전송 (WebSocket으로)
 			if cr.onOutput != nil {
 				if finalResponse != "" {
 					log.Printf("응답 전송: %s", finalResponse[:min(50, len(finalResponse))])
-					cr.onOutput(finalResponse, true, suggestions, toolsUsed, toolDetails)
+					cr.onOutput(finalResponse, true, suggestions, toolsUsed, toolDetails, tokenUsage)
 				} else {
 					log.Printf("빈 응답 전송")
-					cr.onOutput("", true, nil, toolsUsed, toolDetails)
+					cr.onOutput("", true, nil, toolsUsed, toolDetails, nil)
 				}
 			}
 		}
@@ -1915,7 +2053,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		runner: runner,
 	}
 
-	runner.onOutput = func(text string, isComplete bool, suggestions []string, toolsUsed []string, toolDetails []ToolDetail) {
+	runner.onOutput = func(text string, isComplete bool, suggestions []string, toolsUsed []string, toolDetails []ToolDetail, tokenUsage *TokenUsage) {
 		// 세션 저장은 execute 내부에서 ricoSessionID로 직접 처리
 		// 여기서는 WebSocket 전송만 담당
 
@@ -1927,6 +2065,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 				Suggestions: suggestions,
 				ToolsUsed:   toolsUsed,
 				ToolDetails: toolDetails,
+				TokenUsage:  tokenUsage,
 			},
 			Timestamp: time.Now().UnixMilli(),
 		})
@@ -1996,14 +2135,15 @@ func main() {
 	logsDir := filepath.Join(BASE_PATH, "logs")
 	os.MkdirAll(logsDir, 0755)
 
-	// 날짜별 로그 파일 설정 (콘솔 + 파일 동시 출력)
+	// 날짜별 로그 파일 설정 (콘솔 + 파일 + 로그 버퍼 동시 출력)
 	logFileName := filepath.Join(logsDir, time.Now().Format("2006-01-02")+".log")
 	logFile, err := os.OpenFile(logFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		log.Printf("로그 파일 생성 실패: %v", err)
 	} else {
-		// 콘솔과 파일 모두에 로그 출력
-		multiWriter := io.MultiWriter(os.Stdout, logFile)
+		// 콘솔, 파일, 로그 버퍼 모두에 로그 출력
+		logWriter := &LogWriter{source: "go"}
+		multiWriter := io.MultiWriter(os.Stdout, logFile, logWriter)
 		log.SetOutput(multiWriter)
 		log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 		log.Printf("=== 서버 시작 === (로그: %s)", logFileName)
@@ -2030,6 +2170,128 @@ func main() {
 		enableCORS(w)
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
+	})
+
+	// 로그 스트리밍 WebSocket
+	http.HandleFunc("/ws/logs", func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool { return true },
+		}
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Printf("[LogWS] Upgrade failed: %v", err)
+			return
+		}
+		defer conn.Close()
+
+		log.Printf("[LogWS] Client connected")
+
+		// 최근 로그 50개 먼저 전송
+		recentLogs := serverLogBuffer.GetRecent(50)
+		for _, entry := range recentLogs {
+			if err := conn.WriteJSON(entry); err != nil {
+				log.Printf("[LogWS] Initial log send failed: %v", err)
+				return
+			}
+		}
+
+		// 실시간 구독
+		logChan := serverLogBuffer.Subscribe()
+		defer serverLogBuffer.Unsubscribe(logChan)
+
+		// ping/pong 처리
+		conn.SetPongHandler(func(string) error {
+			conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+			return nil
+		})
+
+		// 연결 종료 감지용 goroutine
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for {
+				_, _, err := conn.ReadMessage()
+				if err != nil {
+					return
+				}
+			}
+		}()
+
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case entry, ok := <-logChan:
+				if !ok {
+					return
+				}
+				if err := conn.WriteJSON(entry); err != nil {
+					log.Printf("[LogWS] Send failed: %v", err)
+					return
+				}
+			case <-ticker.C:
+				if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+					return
+				}
+			case <-done:
+				log.Printf("[LogWS] Client disconnected")
+				return
+			}
+		}
+	})
+
+	// 서버 재시작 API
+	http.HandleFunc("/api/restart", func(w http.ResponseWriter, r *http.Request) {
+		enableCORS(w)
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		if r.Method != "POST" {
+			http.Error(w, "POST required", http.StatusMethodNotAllowed)
+			return
+		}
+
+		log.Printf("[Restart] Server restart requested (OS: %s)", runtime.GOOS)
+
+		// 응답 먼저 보내기
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Server restart initiated",
+			"os":      runtime.GOOS,
+		})
+
+		// OS별 빠른 재시작 스크립트 실행 (빌드 없이 서버만 재시작)
+		go func() {
+			time.Sleep(500 * time.Millisecond) // 응답 전송 대기
+
+			var cmd *exec.Cmd
+			scriptsDir := filepath.Join(RICO_BASE_PATH, "scripts")
+
+			switch runtime.GOOS {
+			case "windows":
+				scriptPath := filepath.Join(scriptsDir, "restart-windows.bat")
+				cmd = exec.Command("cmd", "/c", "start", "", scriptPath)
+			case "darwin": // macOS
+				scriptPath := filepath.Join(scriptsDir, "restart-linux.sh")
+				cmd = exec.Command("bash", scriptPath)
+			default: // linux
+				scriptPath := filepath.Join(scriptsDir, "restart-linux.sh")
+				cmd = exec.Command("bash", scriptPath)
+			}
+
+			cmd.Dir = RICO_BASE_PATH
+			if err := cmd.Start(); err != nil {
+				log.Printf("[Restart] Script execution failed: %v", err)
+				return
+			}
+
+			log.Printf("[Restart] Script executed (%s), shutting down current process", runtime.GOOS)
+			os.Exit(0)
+		}()
 	})
 
 	// Rico 세션 목록 조회
