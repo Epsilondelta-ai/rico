@@ -725,6 +725,12 @@
     }
   }
 
+  // 토큰 사용량 캡처 (props 전달 타이밍 문제 해결)
+  let capturedTokenUsage: typeof lastTokenUsage = null;
+  $: if (lastTokenUsage) {
+    capturedTokenUsage = lastTokenUsage;
+  }
+
   // 새 응답 처리 (중복 방지)
   $: if (lastResponse && lastResponse !== lastProcessedResponse) {
     lastProcessedResponse = lastResponse; // 처리 완료 표시
@@ -741,8 +747,9 @@
     // 도구 정보 저장 (현재 값을 캡처)
     const toolsUsedToSave = lastToolsUsed.length > 0 ? [...lastToolsUsed] : undefined;
     const toolDetailsToSave = lastToolDetails.length > 0 ? [...lastToolDetails] : undefined;
-    // 출력 토큰 저장
-    const outputTokensToSave = lastTokenUsage?.outputTokens;
+    // 출력 토큰 저장 (캡처된 값 우선 사용)
+    const tokenUsageToUse = capturedTokenUsage || lastTokenUsage;
+    const outputTokensToSave = tokenUsageToUse?.outputTokens;
 
       const newMessage: ChatMessage = {
         id: Date.now().toString(),
@@ -756,6 +763,9 @@
       };
       localMessages = [...localMessages, newMessage];
       onMessagesChange(localMessages);
+
+      // 캡처 초기화
+      capturedTokenUsage = null;
 
       // suggestions 업데이트
       currentSuggestions = lastSuggestions || [];

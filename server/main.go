@@ -777,13 +777,14 @@ type ClaudeResponse struct {
 }
 
 type ChatMessage struct {
-	ID          string       `json:"id"`
-	Text        string       `json:"text"`
-	IsUser      bool         `json:"isUser"`
-	Timestamp   int64        `json:"timestamp"`
-	IsSystem    bool         `json:"isSystem,omitempty"`    // 시스템 메시지 (세션 복원 시 필터링)
-	ToolsUsed   []string     `json:"toolsUsed,omitempty"`   // 사용된 도구 목록 (예: "Read: main.go") - 호환용
-	ToolDetails []ToolDetail `json:"toolDetails,omitempty"` // 도구 상세 정보
+	ID           string       `json:"id"`
+	Text         string       `json:"text"`
+	IsUser       bool         `json:"isUser"`
+	Timestamp    int64        `json:"timestamp"`
+	IsSystem     bool         `json:"isSystem,omitempty"`     // 시스템 메시지 (세션 복원 시 필터링)
+	ToolsUsed    []string     `json:"toolsUsed,omitempty"`    // 사용된 도구 목록 (예: "Read: main.go") - 호환용
+	ToolDetails  []ToolDetail `json:"toolDetails,omitempty"`  // 도구 상세 정보
+	OutputTokens int          `json:"outputTokens,omitempty"` // 출력 토큰 수
 }
 
 type Session struct {
@@ -1628,6 +1629,24 @@ func (cr *ClaudeRunner) execute(prompt string, ricoSessionID string) {
 				finalResponse = claudeResp.Result
 			}
 
+			// 토큰 사용량 정보 추출 (세션 저장 전에 먼저 추출)
+			var tokenUsage *TokenUsage
+			var outputTokens int
+			if claudeResp.Usage != nil {
+				outputTokens = claudeResp.Usage.OutputTokens
+				tokenUsage = &TokenUsage{
+					InputTokens:              claudeResp.Usage.InputTokens,
+					OutputTokens:             outputTokens,
+					CacheCreationInputTokens: claudeResp.Usage.CacheCreationInputTokens,
+					CacheReadInputTokens:     claudeResp.Usage.CacheReadInputTokens,
+					TotalCostUSD:             claudeResp.TotalCostUSD,
+				}
+				log.Printf("📊 [토큰] 입력: %d, 출력: %d, 캐시생성: %d, 캐시읽기: %d, 비용: $%.4f",
+					tokenUsage.InputTokens, tokenUsage.OutputTokens,
+					tokenUsage.CacheCreationInputTokens, tokenUsage.CacheReadInputTokens,
+					tokenUsage.TotalCostUSD)
+			}
+
 			// Claude 응답을 세션에 저장 (ricoSessionID는 execute 파라미터로 캡처됨)
 			if cr.sessionStore != nil && ricoSessionID != "" && finalResponse != "" {
 				// 페르소나 충전 응답인지 확인 (원본 프롬프트 기반)
@@ -1658,13 +1677,14 @@ func (cr *ClaudeRunner) execute(prompt string, ricoSessionID string) {
 				} else {
 					// 일반 응답
 					botMsg := ChatMessage{
-						ID:          time.Now().Format("20060102150405") + "_bot",
-						Text:        finalResponse,
-						IsUser:      false,
-						Timestamp:   time.Now().UnixMilli(),
-						IsSystem:    false,
-						ToolsUsed:   toolsUsed,
-						ToolDetails: toolDetails,
+						ID:           time.Now().Format("20060102150405") + "_bot",
+						Text:         finalResponse,
+						IsUser:       false,
+						Timestamp:    time.Now().UnixMilli(),
+						IsSystem:     false,
+						ToolsUsed:    toolsUsed,
+						ToolDetails:  toolDetails,
+						OutputTokens: outputTokens, // 출력 토큰 수 저장
 					}
 					cr.sessionStore.AddMessage(ricoSessionID, botMsg)
 				}
@@ -1677,22 +1697,6 @@ func (cr *ClaudeRunner) execute(prompt string, ricoSessionID string) {
 					cr.sessionStore.UpdateLastSuggestions(ricoSessionID, suggestions)
 					log.Printf("suggestions 저장 완료 (세션: %s): %v", ricoSessionID, suggestions)
 				}
-			}
-
-			// 토큰 사용량 정보 추출
-			var tokenUsage *TokenUsage
-			if claudeResp.Usage != nil {
-				tokenUsage = &TokenUsage{
-					InputTokens:              claudeResp.Usage.InputTokens,
-					OutputTokens:             claudeResp.Usage.OutputTokens,
-					CacheCreationInputTokens: claudeResp.Usage.CacheCreationInputTokens,
-					CacheReadInputTokens:     claudeResp.Usage.CacheReadInputTokens,
-					TotalCostUSD:             claudeResp.TotalCostUSD,
-				}
-				log.Printf("📊 [토큰] 입력: %d, 출력: %d, 캐시생성: %d, 캐시읽기: %d, 비용: $%.4f",
-					tokenUsage.InputTokens, tokenUsage.OutputTokens,
-					tokenUsage.CacheCreationInputTokens, tokenUsage.CacheReadInputTokens,
-					tokenUsage.TotalCostUSD)
 			}
 
 			// 응답 텍스트 전송 (WebSocket으로)
