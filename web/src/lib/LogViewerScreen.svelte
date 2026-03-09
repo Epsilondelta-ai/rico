@@ -53,6 +53,42 @@
   let isMounted = true;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // 로그 배치 처리 (UI blocking 방지)
+  let pendingLogs: LogEntry[] = [];
+  let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function flushLogs() {
+    if (pendingLogs.length === 0) return;
+
+    logs = [...logs, ...pendingLogs];
+    pendingLogs = [];
+
+    // 최대 500개 유지
+    if (logs.length > 500) {
+      logs = logs.slice(-500);
+    }
+
+    // 자동 스크롤
+    if (autoScroll && logContainer) {
+      requestAnimationFrame(() => {
+        if (logContainer) {
+          logContainer.scrollTop = logContainer.scrollHeight;
+        }
+      });
+    }
+  }
+
+  function queueLog(log: LogEntry) {
+    pendingLogs.push(log);
+    // 100ms마다 배치 처리 (초당 최대 10번 UI 업데이트)
+    if (!flushTimer) {
+      flushTimer = setTimeout(() => {
+        flushTimer = null;
+        flushLogs();
+      }, 100);
+    }
+  }
+
   function connectWebSocket() {
     if (!isMounted) return;
 
@@ -71,21 +107,7 @@
     ws.onmessage = (event) => {
       try {
         const log: LogEntry = JSON.parse(event.data);
-        logs = [...logs, log];
-
-        // Keep max 500 logs
-        if (logs.length > 500) {
-          logs = logs.slice(-500);
-        }
-
-        // Auto scroll
-        if (autoScroll && logContainer) {
-          requestAnimationFrame(() => {
-            if (logContainer) {
-              logContainer.scrollTop = logContainer.scrollHeight;
-            }
-          });
-        }
+        queueLog(log); // 배치 처리로 UI blocking 방지
       } catch (err) {
         console.error('Log parsing failed:', err);
       }
@@ -126,6 +148,9 @@
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
     }
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+    }
     if (ws) {
       ws.close();
     }
@@ -134,7 +159,7 @@
 
 <div class="log-viewer">
   <header class="header">
-    <button class="back-btn" on:click|stopPropagation={onBack}>
+    <button class="back-btn" on:click|stopPropagation={onBack} on:touchend|preventDefault={onBack}>
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/>
       </svg>
@@ -166,7 +191,7 @@
   </div>
 
   <div class="log-container" bind:this={logContainer} on:scroll={handleScroll}>
-    {#each filteredLogs as log (log.timestamp + log.message)}
+    {#each filteredLogs as log, i (log.timestamp + '_' + i)}
       <div class="log-entry {getLevelClass(log.level)}">
         <span class="log-time">{formatTime(log.timestamp)}</span>
         <span class="log-source">{getSourceIcon(log.source)}</span>

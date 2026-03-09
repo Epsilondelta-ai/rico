@@ -586,9 +586,10 @@ type ServerMessage struct {
 }
 
 type StatusPayload struct {
-	State   string `json:"state"`
-	Task    string `json:"task,omitempty"`
-	Project string `json:"project,omitempty"`
+	State        string   `json:"state"`
+	Task         string   `json:"task,omitempty"`
+	Project      string   `json:"project,omitempty"`
+	PendingTools []string `json:"pendingTools,omitempty"` // 진행 중인 도구 목록 (재연결 시 복원용)
 }
 
 // 토큰 사용량 정보
@@ -1060,6 +1061,9 @@ var sessionStore *SessionStore
 
 // 세션별 작업 상태 (working/idle)
 var sessionWorkingState = make(map[string]bool)
+var sessionCurrentTask = make(map[string]string)    // 현재 진행 중인 도구 상태
+var sessionPendingTools = make(map[string][]string) // 진행 중인 도구 목록 전체
+var sessionPendingToolsSet = make(map[string]map[string]bool) // 중복 방지용
 var sessionWorkingMu sync.RWMutex
 
 func setSessionWorking(sessionID string, working bool) {
@@ -1069,7 +1073,46 @@ func setSessionWorking(sessionID string, working bool) {
 		sessionWorkingState[sessionID] = true
 	} else {
 		delete(sessionWorkingState, sessionID)
+		delete(sessionCurrentTask, sessionID)
+		delete(sessionPendingTools, sessionID)
+		delete(sessionPendingToolsSet, sessionID)
 	}
+}
+
+func setSessionCurrentTask(sessionID string, task string) {
+	sessionWorkingMu.Lock()
+	defer sessionWorkingMu.Unlock()
+	sessionCurrentTask[sessionID] = task
+}
+
+func addSessionPendingTool(sessionID string, tool string) {
+	sessionWorkingMu.Lock()
+	defer sessionWorkingMu.Unlock()
+	// 중복 방지
+	if sessionPendingToolsSet[sessionID] == nil {
+		sessionPendingToolsSet[sessionID] = make(map[string]bool)
+	}
+	if !sessionPendingToolsSet[sessionID][tool] {
+		sessionPendingToolsSet[sessionID][tool] = true
+		sessionPendingTools[sessionID] = append(sessionPendingTools[sessionID], tool)
+	}
+}
+
+func getSessionCurrentTask(sessionID string) string {
+	sessionWorkingMu.RLock()
+	defer sessionWorkingMu.RUnlock()
+	return sessionCurrentTask[sessionID]
+}
+
+func getSessionPendingTools(sessionID string) []string {
+	sessionWorkingMu.RLock()
+	defer sessionWorkingMu.RUnlock()
+	if tools, ok := sessionPendingTools[sessionID]; ok {
+		result := make([]string, len(tools))
+		copy(result, tools)
+		return result
+	}
+	return nil
 }
 
 func isSessionWorking(sessionID string) bool {
@@ -1752,8 +1795,18 @@ func (cr *ClaudeRunner) Cancel() {
 	cr.queue = make([]QueueItem, 0)
 
 	if cr.cmd != nil && cr.cmd.Process != nil {
-		cr.cmd.Process.Kill()
+		pid := cr.cmd.Process.Pid
+		log.Printf("Claude 프로세스 취소 시도 (PID: %d)", pid)
+
+		// Windows: taskkill /T /F /PID 로 프로세스 트리 전체 종료
+		// Unix: Kill()로 충분하지만, Windows에서는 자식 프로세스가 남을 수 있음
+		killCmd := exec.Command("taskkill", "/T", "/F", "/PID", fmt.Sprintf("%d", pid))
+		if err := killCmd.Run(); err != nil {
+			log.Printf("taskkill 실패, 직접 Kill 시도: %v", err)
+			cr.cmd.Process.Kill()
+		}
 		cr.isRunning = false
+		log.Printf("Claude 프로세스 취소 완료")
 	}
 }
 
@@ -1926,13 +1979,17 @@ func (c *Client) handleMessage(raw []byte) {
 
 		// 전역 세션 상태 확인 후 전송
 		state := "idle"
+		task := ""
+		var pendingTools []string
 		if c.sessionID != "" && isSessionWorking(c.sessionID) {
 			state = "working"
+			task = getSessionCurrentTask(c.sessionID)
+			pendingTools = getSessionPendingTools(c.sessionID)
 		}
-		log.Printf("연결 시 상태 전송: 세션=%s, 상태=%s", c.sessionID, state)
+		log.Printf("연결 시 상태 전송: 세션=%s, 상태=%s, task=%s, pendingTools=%d개", c.sessionID, state, task, len(pendingTools))
 		c.sendMessage(ServerMessage{
 			Type:      "status",
-			Payload:   StatusPayload{State: state},
+			Payload:   StatusPayload{State: state, Task: task, PendingTools: pendingTools},
 			Timestamp: time.Now().UnixMilli(),
 		})
 
@@ -1981,6 +2038,10 @@ func (c *Client) handleMessage(raw []byte) {
 
 		if payload.Action == "cancel" {
 			c.runner.Cancel()
+			// 세션 상태 정리 (working -> idle)
+			if c.sessionID != "" {
+				setSessionWorking(c.sessionID, false)
+			}
 			c.sendMessage(ServerMessage{
 				Type:      "status",
 				Payload:   StatusPayload{State: "idle", Task: "취소됨"},
@@ -2094,6 +2155,14 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	}
 
 	runner.onStatus = func(state, task string) {
+		// 세션별 현재 태스크 저장 (재연결 시 복원용)
+		if client.sessionID != "" && state == "working" {
+			setSessionCurrentTask(client.sessionID, task)
+			// 도구 사용인 경우 pendingTools에도 추가
+			if task != "" && task != "생각하는 중" {
+				addSessionPendingTool(client.sessionID, task)
+			}
+		}
 		client.sendMessage(ServerMessage{
 			Type: "status",
 			Payload: StatusPayload{

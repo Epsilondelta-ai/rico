@@ -48,6 +48,7 @@
   export let isConnected: boolean = false;
   export let claudeState: string = 'idle';
   export let claudeTask: string = ''; // 현재 수행 중인 작업 상태
+  export let initialPendingTools: string[] = []; // 재연결 시 복원할 도구 목록
   export let sessionId: string | null = null;
   export let initialMessages: ChatMessage[] = [];
   export let onMessagesChange: (messages: ChatMessage[]) => void = () => {};
@@ -157,6 +158,13 @@
   // 실시간 도구 사용 표시 (작업 중일 때)
   let pendingTools: string[] = [];
   let pendingToolsSet = new Set<string>();
+
+  // initialPendingTools가 오면 복원 (재연결 시)
+  // initialPendingTools가 오면 복원 (재연결 시, working 상태일 때만)
+  $: if (initialPendingTools.length > 0 && pendingTools.length === 0 && claudeState === 'working') {
+    pendingTools = [...initialPendingTools];
+    pendingToolsSet = new Set(initialPendingTools);
+  }
 
   // 새 메시지 구분선 (재접속 시 마지막으로 본 메시지 인덱스)
   let newMessageDividerIndex: number | null = null;

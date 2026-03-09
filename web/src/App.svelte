@@ -79,6 +79,7 @@
   let isConnected = false;
   let claudeState = 'idle';
   let claudeTask = ''; // 현재 수행 중인 작업 (도구 사용 중 등)
+  let initialPendingTools: string[] = []; // 재연결 시 복원할 도구 목록
 
   // 세션별 메시지 저장소 (서버에서 로드)
   let sessionMessages: Record<string, ChatMessage[]> = {};
@@ -249,6 +250,10 @@
         case 'status':
           claudeState = data.payload.state;
           claudeTask = data.payload.task || '';
+          // 재연결 시 pendingTools 복원
+          if (data.payload.pendingTools && data.payload.pendingTools.length > 0) {
+            initialPendingTools = data.payload.pendingTools;
+          }
           break;
         case 'response':
           if (data.payload.text) {
@@ -333,6 +338,7 @@
   async function handleSelectSession(sessionId: string) {
     currentSessionId = sessionId;
     localStorage.setItem(STORAGE_KEY, sessionId); // 세션 ID 저장
+    initialPendingTools = []; // 세션 전환 시 pendingTools 초기화
     await loadSessionMessages(sessionId);
     currentScreen = 'chat';
   }
@@ -344,6 +350,7 @@
     localStorage.setItem(STORAGE_KEY, newId); // 세션 ID 저장
     sessionMessages = { [newId]: [] };
     lastSuggestions = []; // 새 세션이므로 suggestions 초기화
+    initialPendingTools = []; // 새 세션이므로 pendingTools 초기화
     currentScreen = 'chat';
   }
 
@@ -419,8 +426,12 @@
     currentScreen = 'logs';
   }
 
-  function handleBackFromLogs() {
+  async function handleBackFromLogs() {
     currentScreen = 'chat';
+    // 채팅 화면으로 돌아갈 때 메시지 다시 로드
+    if (currentSessionId) {
+      await loadSessionMessages(currentSessionId);
+    }
   }
 </script>
 
@@ -465,6 +476,7 @@
     {isConnected}
     {claudeState}
     {claudeTask}
+    {initialPendingTools}
     sessionId={currentSessionId}
     initialMessages={currentMessages}
     onMessagesChange={updateMessages}
