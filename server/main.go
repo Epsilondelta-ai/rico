@@ -1509,6 +1509,7 @@ func (cr *ClaudeRunner) execute(prompt string, ricoSessionID string) {
 		var toolsUsed []string
 		var toolDetails []ToolDetail
 		toolsUsedMap := make(map[string]bool)
+		isFirstAssistant := true // 첫 번째 assistant 이벤트 플래그 (--resume 히스토리 무시용)
 
 		// stderr 읽기 (로그용) - stdout과 동시에 시작해야 cmd.Wait()이 빨리 끝남
 		go func() {
@@ -1543,6 +1544,8 @@ func (cr *ClaudeRunner) execute(prompt string, ricoSessionID string) {
 			switch eventType {
 			case "assistant":
 				// 도구 사용 이벤트
+				// --resume 시 히스토리도 assistant 이벤트로 오지만,
+				// content_block_start에서 리셋하므로 여기서는 누적만 함
 				if message, ok := event["message"].(map[string]interface{}); ok {
 					if content, ok := message["content"].([]interface{}); ok {
 						for _, c := range content {
@@ -1572,6 +1575,15 @@ func (cr *ClaudeRunner) execute(prompt string, ricoSessionID string) {
 
 			case "content_block_start":
 				// 콘텐츠 블록 시작 (tool_use 포함)
+				// 참고: content_block_start는 현재 응답에서만 옴 (히스토리에서는 안 옴)
+				// 첫 content_block_start가 오면 히스토리에서 누적된 도구들 리셋
+				if isFirstAssistant {
+					toolsUsed = nil
+					toolDetails = nil
+					toolsUsedMap = make(map[string]bool)
+					isFirstAssistant = false
+				}
+
 				if contentBlock, ok := event["content_block"].(map[string]interface{}); ok {
 					if contentBlock["type"] == "tool_use" {
 						toolName, _ := contentBlock["name"].(string)
