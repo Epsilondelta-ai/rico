@@ -1071,6 +1071,9 @@ func setSessionWorking(sessionID string, working bool) {
 	defer sessionWorkingMu.Unlock()
 	if working {
 		sessionWorkingState[sessionID] = true
+		// 새 응답 시작 시 pendingTools 초기화 (이전 응답 도구 제거)
+		delete(sessionPendingTools, sessionID)
+		delete(sessionPendingToolsSet, sessionID)
 	} else {
 		delete(sessionWorkingState, sessionID)
 		delete(sessionCurrentTask, sessionID)
